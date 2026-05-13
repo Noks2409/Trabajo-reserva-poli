@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block title %}Agenda Semestral{% endblock %}
+{% block content %}
+<div class="page-header">
+  <h1>Agenda Semestral</h1>
+  <p>Gestiona las agendas y bloques horarios del sistema</p>
+</div>
+
+<div style="margin-bottom:1.25rem;">
+  <a href="{{ url_for('admin_agenda_nueva') }}" class="btn btn-primary">＋ Nueva agenda</a>
+</div>
+
+{% if agendas %}
+  {% for agenda in agendas %}
+  <div class="card" style="margin-bottom:1.25rem;">
+    <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:1rem;">
+      <div>
+        <div class="card-title" style="margin-bottom:.3rem;">📅 {{ agenda.semestre }}</div>
+        <div style="font-size:.875rem; color:var(--muted);">
+          {{ agenda.fecha_inicio.strftime('%d/%m/%Y') }} — {{ agenda.fecha_fin.strftime('%d/%m/%Y') }}
+        </div>
+      </div>
+      <a href="{{ url_for('admin_bloquear_dia', aid=agenda.id) }}" class="btn btn-secondary btn-sm">🚫 Bloquear día/horario</a>
+    <form method="POST" action="{{ url_for('admin_aplicar_restricciones', aid=agenda.id) }}" style="display:inline; margin-left:.5rem;">
+      <button type="submit" class="btn btn-navy btn-sm">⚙️ Aplicar restricciones</button>
+    </form>
+    </div>
+
+    {% if agenda.bloques %}
+    <hr>
+    <div style="font-size:.8rem; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:.05em; margin-bottom:.75rem;">Bloques bloqueados</div>
+    <table>
+      <thead><tr><th>Fecha</th><th>Hora inicio</th><th>Hora fin</th><th>Acción</th></tr></thead>
+      <tbody>
+        {% for bloque in agenda.bloques %}
+        <tr>
+          <td>{{ bloque.fecha.strftime('%d/%m/%Y') }}</td>
+          <td>{{ bloque.hora_inicio.strftime('%H:%M') }}</td>
+          <td>{{ bloque.hora_fin.strftime('%H:%M') }}</td>
+          <td>
+            <form method="POST" action="{{ url_for('admin_eliminar_bloque', aid=agenda.id, bid=bloque.id) }}" style="display:inline;">
+              <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('¿Eliminar este bloque?')">Eliminar</button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <hr>
+    <p style="font-size:.875rem; color:var(--muted); margin-top:.5rem;">Sin bloques registrados.</p>
+    {% endif %}
+  </div>
+  {% endfor %}
+{% else %}
+  <div class="card" style="text-align:center; padding:3rem;">
+    <div style="font-size:2.5rem; margin-bottom:1rem;">📅</div>
+    <p style="color:var(--muted);">No hay agendas creadas aún.</p>
+    <a href="{{ url_for('admin_agenda_nueva') }}" class="btn btn-primary" style="margin-top:1rem;">Crear primera agenda</a>
+  </div>
+{% endif %}
+{% endblock %}

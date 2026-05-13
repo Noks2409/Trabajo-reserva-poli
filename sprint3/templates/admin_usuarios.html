@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+{% block title %}Usuarios{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>Listado de usuarios</h1>
+  <p>Gestiona todos los usuarios del sistema</p>
+</div>
+
+<!-- Filtro por rol -->
+<div class="card" style="margin-bottom:1.25rem;">
+  <form method="GET" style="display:flex; gap:.75rem; align-items:flex-end; flex-wrap:wrap;">
+    <div>
+      <label style="display:block; font-size:.75rem; color:var(--muted); text-transform:uppercase; letter-spacing:.06em; margin-bottom:.4rem;">Filtrar por rol</label>
+      <select name="rol" style="background:var(--bg); border:1px solid var(--border); color:var(--text); padding:.6rem .9rem; border-radius:10px; font-family:inherit; font-size:.875rem; min-width:180px;">
+        <option value=""  {% if not filtro_rol %}selected{% endif %}>Todos los roles</option>
+        <option value="admin"          {% if filtro_rol == 'admin' %}selected{% endif %}>Admin</option>
+        <option value="docente"        {% if filtro_rol == 'docente' %}selected{% endif %}>Docente</option>
+        <option value="administrativo" {% if filtro_rol == 'administrativo' %}selected{% endif %}>Administrativo</option>
+        <option value="externa"        {% if filtro_rol == 'externa' %}selected{% endif %}>Persona Externa</option>
+      </select>
+    </div>
+    <button type="submit" class="btn btn-primary">Filtrar</button>
+    {% if filtro_rol %}
+      <a href="{{ url_for('admin_usuarios') }}" class="btn btn-secondary">Limpiar filtro</a>
+    {% endif %}
+  </form>
+</div>
+
+<!-- Tabla de usuarios -->
+<div class="card">
+  <div class="card-title">
+    👥 Usuarios
+    <span style="font-size:.8rem; font-weight:400; color:var(--muted); margin-left:.5rem;">
+      {{ usuarios|length }} resultado{{ 's' if usuarios|length != 1 else '' }}
+    </span>
+  </div>
+
+  {% if usuarios %}
+  <table>
+    <thead>
+      <tr>
+        <th>ID</th>
+        <th>Nombre</th>
+        <th>Correo</th>
+        <th>Rol</th>
+        <th>Detalle</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for u in usuarios %}
+      <tr>
+        <td style="color:var(--muted); font-family:'DM Mono',monospace; font-size:.8rem;">#{{ u.id }}</td>
+        <td><strong>{{ u.nombre }}</strong></td>
+        <td style="color:var(--muted);">{{ u.correo }}</td>
+        <td><span class="pill pill-{{ u.rol }}">{{ u.rol }}</span></td>
+        <td style="font-size:.8rem; color:var(--muted);">
+          {% if u.rol == 'docente' %}{{ u.cod_docente or '' }} · {{ u.departamento or '' }}
+          {% elif u.rol == 'administrativo' %}{{ u.dependencia or '' }}
+          {% elif u.rol == 'externa' %}{{ u.empresa or '' }} · {{ u.telefono or '' }}
+          {% else %}—{% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+    <p style="text-align:center; color:var(--muted); padding:2rem 0;">
+      No hay usuarios con ese filtro.
+    </p>
+  {% endif %}
+</div>
+{% endblock %}

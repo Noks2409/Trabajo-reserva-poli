@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% block title %}Editar rol — {{ objetivo.nombre }}{% endblock %}
+{% block content %}
+<div class="page-header">
+  <h1>Editar rol de usuario</h1>
+  <p>Modifica el rol asignado a este usuario</p>
+</div>
+
+<div style="max-width: 520px;">
+
+  <!-- Tarjeta del usuario -->
+  <div class="card" style="margin-bottom: 1.25rem; border-left: 4px solid var(--cyan);">
+    <div style="display:flex; align-items:center; gap:1rem;">
+      <div style="width:48px; height:48px; background:var(--cyan); border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:1.4rem; flex-shrink:0;">
+        {% if objetivo.rol == 'admin' %}🛡️
+        {% elif objetivo.rol == 'docente' %}🎓
+        {% elif objetivo.rol == 'administrativo' %}🏢
+        {% else %}🏛{% endif %}
+      </div>
+      <div>
+        <div style="font-weight:700; font-size:1rem; font-family:'Nunito',sans-serif; color:var(--navy);">{{ objetivo.nombre }}</div>
+        <div style="color:var(--muted); font-size:.85rem;">{{ objetivo.correo }}</div>
+        <div style="margin-top:.35rem;">
+          <span style="font-size:.75rem; color:var(--muted);">Rol actual:</span>
+          <span class="pill pill-{{ objetivo.rol }}" style="margin-left:.3rem;">{{ objetivo.rol }}</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Formulario -->
+  <div class="card">
+    <div class="card-title">🔄 Cambiar rol</div>
+    <form method="POST">
+      <div class="form-group">
+        <label>Nuevo rol</label>
+        <select name="rol" required>
+          <option value="">Selecciona un rol...</option>
+          <option value="docente"        {% if objetivo.rol == 'docente' %}selected{% endif %}>Docente</option>
+          <option value="administrativo" {% if objetivo.rol == 'administrativo' %}selected{% endif %}>Administrativo</option>
+          <option value="externa"        {% if objetivo.rol == 'externa' %}selected{% endif %}>Persona Externa</option>
+          <option value="institucional"  {% if objetivo.rol == 'institucional' %}selected{% endif %}>Institucional (Docente/Administrativo)</option>
+          <option value="admin"          {% if objetivo.rol == 'admin' %}selected{% endif %}>Admin</option>
+        </select>
+      </div>
+
+      <div style="background:#fff8e1; border:1px solid #f5c842; border-radius:var(--radius); padding:.75rem 1rem; margin-bottom:1rem; font-size:.85rem; color:#7a5c00;">
+        ⚠️ Al cambiar el rol se borrarán los campos específicos del rol anterior (código docente, dependencia, etc.).
+      </div>
+
+      <div style="display:flex; gap:.75rem;">
+        <button type="submit" class="btn btn-primary">💾 Guardar cambio</button>
+        <a href="{{ url_for('admin_usuarios') }}" class="btn btn-secondary">Cancelar</a>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

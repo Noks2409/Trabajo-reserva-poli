@@ -1,0 +1,7 @@
+flask
+flask-mail
+sqlalchemy
+bcrypt
+itsdangerous
+gunicorn
+psycopg2-binary

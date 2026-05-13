@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block title %}Aprobar Reserva{% endblock %}
+{% block content %}
+<div class="page-header">
+  <h1>Aprobar reserva</h1>
+  <p>Revisa los detalles antes de confirmar la aprobación</p>
+</div>
+
+<div style="max-width:600px;">
+
+  <!-- Paso 3 del diagrama: El sistema muestra los detalles -->
+  <div class="card" style="margin-bottom:1.25rem; border-left:4px solid var(--success);">
+    <div class="card-title">📋 Detalles de la reserva</div>
+    <table>
+      <tr><td style="color:var(--muted); width:40%;">Solicitante</td><td><strong>{{ reserva.usuario.nombre }}</strong></td></tr>
+      <tr><td style="color:var(--muted);">Correo</td><td>{{ reserva.usuario.correo }}</td></tr>
+      <tr><td style="color:var(--muted);">Evento</td><td>{{ reserva.tipo_evento }}</td></tr>
+      <tr><td style="color:var(--muted);">Finalidad</td><td>{{ reserva.finalidad }}</td></tr>
+      <tr><td style="color:var(--muted);">Espacio</td><td>{% for e in reserva.espacios %}{{ e.nombre }}{% endfor %}</td></tr>
+      <tr><td style="color:var(--muted);">Fecha</td><td>{{ reserva.fecha.strftime('%d/%m/%Y') }}</td></tr>
+      <tr><td style="color:var(--muted);">Horario</td><td>{{ reserva.hora_inicio.strftime('%H:%M') }} – {{ reserva.hora_fin.strftime('%H:%M') }}</td></tr>
+      <tr><td style="color:var(--muted);">Personas</td><td>{{ reserva.cant_personas }}</td></tr>
+      {% if reserva.servicios_adicionales %}
+      <tr><td style="color:var(--muted);">Servicios</td><td>{{ reserva.servicios_adicionales }}</td></tr>
+      {% endif %}
+      {% if reserva.indumentaria %}
+      <tr><td style="color:var(--muted);">Indumentaria</td><td>{{ reserva.indumentaria }}</td></tr>
+      {% endif %}
+    </table>
+  </div>
+
+  <!-- Paso 4 del diagrama: El administrador confirma la aprobación -->
+  <div class="card">
+    <div class="card-title" style="color:var(--success);">✅ Confirmar aprobación</div>
+    <p style="font-size:.88rem; color:var(--muted); margin-bottom:1.25rem;">
+      Al aprobar, se le enviará una notificación por correo al solicitante con los detalles de la reserva confirmada.
+    </p>
+    <form method="POST">
+      <div style="display:flex; gap:.75rem;">
+        <button type="submit" class="btn btn-success">✅ Confirmar aprobación</button>
+        <a href="{{ url_for('admin_reservas') }}" class="btn btn-secondary">Cancelar</a>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

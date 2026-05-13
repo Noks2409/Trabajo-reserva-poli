@@ -1,0 +1,281 @@
+{% extends "base.html" %}
+{% block title %}Historial de Reservas{% endblock %}
+
+{% block head %}
+<style>
+  /* ── Tabs ── */
+  .tabs { display:flex; gap:.5rem; flex-wrap:wrap; margin-bottom:1.5rem; }
+  .tab-btn {
+    padding:.45rem 1.1rem; border-radius:20px; font-size:.8rem; font-weight:700;
+    font-family:'Nunito',sans-serif; cursor:pointer; border:1.5px solid var(--border);
+    background:var(--white); color:var(--muted); transition:all .18s; text-decoration:none;
+    display:inline-flex; align-items:center; gap:.35rem;
+  }
+  .tab-btn:hover { border-color:var(--cyan); color:var(--cyan-dark); text-decoration:none; }
+  .tab-btn.active { background:var(--navy); color:#fff; border-color:var(--navy); }
+  .tab-btn .badge-count {
+    background:rgba(255,255,255,.22); color:inherit; font-size:.68rem;
+    padding:1px 7px; border-radius:10px;
+  }
+  .tab-btn.active .badge-count { background:rgba(255,255,255,.25); }
+
+  /* ── Filtros ── */
+  .filter-bar {
+    background:var(--white); border:1px solid var(--border); border-radius:var(--radius);
+    padding:1rem 1.25rem; margin-bottom:1.25rem; box-shadow:var(--shadow);
+    display:flex; gap:.75rem; flex-wrap:wrap; align-items:flex-end;
+  }
+  .filter-bar .fgroup { display:flex; flex-direction:column; gap:.25rem; }
+  .filter-bar label  { font-size:.72rem; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:.04em; margin-bottom:0; }
+  .filter-bar input, .filter-bar select {
+    padding:.45rem .75rem; font-size:.85rem; min-width:140px; width:auto;
+  }
+
+  /* ── Estrellas (display) ── */
+  .stars-display { color:#f5a623; font-size:1rem; letter-spacing:1px; }
+  .stars-display.small { font-size:.8rem; }
+
+  /* ── Badge calificación ── */
+  .btn-rate {
+    background:linear-gradient(135deg,#f5a623,#e88e00);
+    color:#fff; border:none; font-size:.78rem; padding:.3rem .75rem;
+    border-radius:20px; font-weight:700; cursor:pointer; text-decoration:none;
+    display:inline-flex; align-items:center; gap:.3rem; transition:opacity .18s;
+  }
+  .btn-rate:hover { opacity:.85; text-decoration:none; color:#fff; }
+
+  /* ── Expand detalles ── */
+  .detail-row td { background:#f8fbfe; font-size:.82rem; color:var(--muted); }
+  .toggle-detail { cursor:pointer; font-size:.75rem; color:var(--cyan-dark); font-weight:700; }
+
+  /* ── Empty state ── */
+  .empty-state { text-align:center; padding:4rem 2rem; color:var(--muted); }
+  .empty-state .icon { font-size:3rem; margin-bottom:1rem; }
+
+  /* ── Summary cards ── */
+  .summary-strip { display:flex; gap:1rem; flex-wrap:wrap; margin-bottom:1.5rem; }
+  .summary-card {
+    flex:1; min-width:120px; background:var(--white); border:1px solid var(--border);
+    border-radius:var(--radius); padding:1rem 1.25rem; box-shadow:var(--shadow);
+    border-top:3px solid var(--cyan); text-align:center;
+  }
+  .summary-card .val { font-size:1.75rem; font-weight:800; font-family:'Nunito',sans-serif; color:var(--navy); }
+  .summary-card .lbl { font-size:.72rem; color:var(--muted); margin-top:.2rem; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>📋 Historial de reservas</h1>
+  <p>Consulta, filtra y califica todas tus solicitudes de reserva</p>
+</div>
+
+<!-- Summary strip -->
+<div class="summary-strip">
+  <div class="summary-card" style="border-top-color:var(--cyan);">
+    <div class="val">{{ conteos.todas }}</div>
+    <div class="lbl">Total</div>
+  </div>
+  <div class="summary-card" style="border-top-color:#e6a817;">
+    <div class="val">{{ conteos.pendiente }}</div>
+    <div class="lbl">En revisión</div>
+  </div>
+  <div class="summary-card" style="border-top-color:#28a745;">
+    <div class="val">{{ conteos.aprobada }}</div>
+    <div class="lbl">Confirmadas</div>
+  </div>
+  <div class="summary-card" style="border-top-color:#dc3545;">
+    <div class="val">{{ conteos.rechazada }}</div>
+    <div class="lbl">Rechazadas</div>
+  </div>
+  <div class="summary-card" style="border-top-color:var(--muted);">
+    <div class="val">{{ conteos.cancelada }}</div>
+    <div class="lbl">Canceladas</div>
+  </div>
+</div>
+
+<!-- Pestañas de estado -->
+<div class="tabs">
+  <a href="{{ url_for('historial_reservas') }}" class="tab-btn {% if not filtro_estado %}active{% endif %}">
+    Todas <span class="badge-count">{{ conteos.todas }}</span>
+  </a>
+  <a href="{{ url_for('historial_reservas', estado='pendiente') }}" class="tab-btn {% if filtro_estado=='pendiente' %}active{% endif %}">
+    ⏳ En revisión <span class="badge-count">{{ conteos.pendiente }}</span>
+  </a>
+  <a href="{{ url_for('historial_reservas', estado='aprobada') }}" class="tab-btn {% if filtro_estado=='aprobada' %}active{% endif %}">
+    ✅ Confirmadas <span class="badge-count">{{ conteos.aprobada }}</span>
+  </a>
+  <a href="{{ url_for('historial_reservas', estado='rechazada') }}" class="tab-btn {% if filtro_estado=='rechazada' %}active{% endif %}">
+    ❌ Rechazadas <span class="badge-count">{{ conteos.rechazada }}</span>
+  </a>
+  <a href="{{ url_for('historial_reservas', estado='cancelada') }}" class="tab-btn {% if filtro_estado=='cancelada' %}active{% endif %}">
+    🚫 Canceladas <span class="badge-count">{{ conteos.cancelada }}</span>
+  </a>
+</div>
+
+<!-- Barra de filtros -->
+<form method="GET" action="{{ url_for('historial_reservas') }}" class="filter-bar">
+  {% if filtro_estado %}
+    <input type="hidden" name="estado" value="{{ filtro_estado }}"/>
+  {% endif %}
+  <div class="fgroup">
+    <label>🔍 Buscar</label>
+    <input type="text" name="busqueda" value="{{ filtro_busqueda }}" placeholder="Evento, finalidad…" style="min-width:200px;"/>
+  </div>
+  <div class="fgroup">
+    <label>Desde</label>
+    <input type="date" name="fecha_desde" value="{{ filtro_fecha_desde }}"/>
+  </div>
+  <div class="fgroup">
+    <label>Hasta</label>
+    <input type="date" name="fecha_hasta" value="{{ filtro_fecha_hasta }}"/>
+  </div>
+  <div class="fgroup" style="justify-content:flex-end;">
+    <label>&nbsp;</label>
+    <div style="display:flex;gap:.5rem;">
+      <button type="submit" class="btn btn-primary btn-sm">Filtrar</button>
+      <a href="{{ url_for('historial_reservas') }}" class="btn btn-secondary btn-sm">Limpiar</a>
+    </div>
+  </div>
+</form>
+
+<!-- Acciones rápidas -->
+<div style="margin-bottom:1rem; display:flex; gap:.75rem; flex-wrap:wrap; align-items:center;">
+  <a href="{{ url_for('reserva_nueva') }}" class="btn btn-primary">＋ Nueva reserva</a>
+  <span style="font-size:.82rem; color:var(--muted);">
+    {{ reservas|length }} resultado{% if reservas|length != 1 %}s{% endif %}
+  </span>
+</div>
+
+{% if reservas %}
+<div class="card" style="padding:0; overflow:hidden;">
+  <table>
+    <thead>
+      <tr>
+        <th style="width:48px;">ID</th>
+        <th>Evento</th>
+        <th>Espacio</th>
+        <th>Fecha</th>
+        <th>Horario</th>
+        <th>Estado</th>
+        <th>Calificación</th>
+        <th>Acciones</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for r in reservas %}
+      {# ¿Puede calificar? Aprobada + fecha pasada #}
+      {% set puede_calificar = (r.estado == 'aprobada' and r.fecha < hoy) %}
+      <tr id="row-{{ r.id }}">
+        <td style="color:var(--muted); font-size:.78rem; font-weight:700;">#{{ r.id }}</td>
+
+        <td>
+          <strong>{{ r.tipo_evento }}</strong>
+          {% if r.finalidad %}
+          <div style="font-size:.78rem; color:var(--muted);">{{ r.finalidad }}</div>
+          {% endif %}
+          {% if r.justificacion_rechazo %}
+          <div style="font-size:.75rem; color:#dc3545; margin-top:.2rem; cursor:pointer;"
+               onclick="toggleDetalle({{ r.id }})">
+            📋 Ver motivo rechazo ▾
+          </div>
+          {% endif %}
+        </td>
+
+        <td>{{ r.espacios[0].nombre if r.espacios else '—' }}</td>
+        <td style="white-space:nowrap;">{{ r.fecha.strftime('%d/%m/%Y') }}</td>
+        <td style="font-size:.82rem; white-space:nowrap;">
+          {{ r.hora_inicio.strftime('%H:%M') }} – {{ r.hora_fin.strftime('%H:%M') }}
+        </td>
+
+        <td>
+          {% if r.estado == 'pendiente' %}
+            <span class="pill" style="background:#fff8e1;color:#7a5c00;">⏳ En revisión</span>
+          {% elif r.estado == 'aprobada' %}
+            <span class="pill" style="background:#eaf7ee;color:#1a6630;">✅ Confirmada</span>
+          {% elif r.estado == 'rechazada' %}
+            <span class="pill" style="background:#fdecea;color:#8b1a1a;">❌ Rechazada</span>
+          {% elif r.estado == 'cancelada' %}
+            <span class="pill" style="background:#f4f6f9;color:var(--muted);">🚫 Cancelada</span>
+          {% endif %}
+        </td>
+
+        <!-- Calificación -->
+        <td style="min-width:120px;">
+          {% if r.calificacion %}
+            <div class="stars-display small">
+              {% for i in range(1,6) %}{{ '★' if i <= r.calificacion.puntuacion else '☆' }}{% endfor %}
+            </div>
+            <div style="font-size:.72rem; color:var(--muted);">{{ r.calificacion.puntuacion }}/5</div>
+            {% if r.calificacion.respuesta_admin %}
+            <div style="font-size:.7rem; color:#005f73; margin-top:.2rem;" title="{{ r.calificacion.respuesta_admin }}">
+              💬 Admin respondió
+            </div>
+            {% endif %}
+          {% elif puede_calificar %}
+            <a href="{{ url_for('calificar_reserva', rid=r.id) }}" class="btn-rate">⭐ Calificar</a>
+          {% else %}
+            <span style="font-size:.75rem; color:var(--muted);">—</span>
+          {% endif %}
+        </td>
+
+        <!-- Acciones -->
+        <td>
+          <div style="display:flex; gap:.4rem; flex-wrap:wrap;">
+            {% if r.estado in ['pendiente', 'aprobada'] %}
+              {% if r.estado == 'pendiente' %}
+              <a href="{{ url_for('modificar_reserva', rid=r.id) }}" class="btn btn-secondary btn-sm">✏️</a>
+              {% endif %}
+              <form method="POST" action="{{ url_for('cancelar_reserva', rid=r.id) }}"
+                    onsubmit="return confirm('¿Seguro que deseas cancelar esta reserva?')">
+                <button type="submit" class="btn btn-danger btn-sm">🚫</button>
+              </form>
+            {% endif %}
+            {% if r.calificacion and puede_calificar %}
+            <a href="{{ url_for('calificar_reserva', rid=r.id) }}" class="btn btn-secondary btn-sm" title="Editar calificación">✏️⭐</a>
+            {% endif %}
+          </div>
+        </td>
+      </tr>
+
+      {% if r.justificacion_rechazo %}
+      <tr class="detail-row" id="detail-{{ r.id }}" style="display:none;">
+        <td colspan="8">
+          <div style="padding:.5rem .75rem; border-left:3px solid #dc3545; background:#fff5f5; border-radius:4px;">
+            <strong style="color:#dc3545; font-size:.8rem;">Motivo del rechazo:</strong>
+            <p style="margin:.25rem 0 0; font-size:.82rem; color:var(--text);">{{ r.justificacion_rechazo }}</p>
+          </div>
+        </td>
+      </tr>
+      {% endif %}
+
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{% else %}
+<div class="empty-state card">
+  <div class="icon">📋</div>
+  <p style="font-size:1rem; font-weight:600; margin-bottom:.5rem;">
+    {% if filtro_estado or filtro_busqueda or filtro_fecha_desde or filtro_fecha_hasta %}
+      No se encontraron reservas con esos filtros.
+    {% else %}
+      Aún no tienes reservas.
+    {% endif %}
+  </p>
+  {% if filtro_estado or filtro_busqueda or filtro_fecha_desde or filtro_fecha_hasta %}
+    <a href="{{ url_for('historial_reservas') }}" class="btn btn-secondary" style="margin-top:1rem;">Limpiar filtros</a>
+  {% else %}
+    <a href="{{ url_for('reserva_nueva') }}" class="btn btn-primary" style="margin-top:1rem;">Solicitar primera reserva</a>
+  {% endif %}
+</div>
+{% endif %}
+
+<script>
+function toggleDetalle(id) {
+  const row = document.getElementById('detail-' + id);
+  if (row) row.style.display = row.style.display === 'none' ? '' : 'none';
+}
+</script>
+{% endblock %}

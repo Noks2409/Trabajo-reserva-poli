@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block title %}Espacios{% endblock %}
+{% block content %}
+<div class="page-header">
+  <h1>Espacios del auditorio</h1>
+  <p>Administra los espacios disponibles para reserva</p>
+</div>
+
+<div style="margin-bottom:1.25rem;">
+  <a href="{{ url_for('admin_espacio_nuevo') }}" class="btn btn-primary">＋ Registrar espacio</a>
+</div>
+
+<div class="card">
+  {% if espacios %}
+  <table>
+    <thead><tr><th>ID</th><th>Nombre</th><th>Capacidad</th><th>Acción</th></tr></thead>
+    <tbody>
+      {% for e in espacios %}
+      <tr>
+        <td style="color:var(--muted); font-size:.8rem;">#{{ e.id }}</td>
+        <td><strong>{{ e.nombre }}</strong></td>
+        <td>{{ e.capacidad }} personas</td>
+        <td>
+          <form method="POST" action="{{ url_for('admin_espacio_eliminar', eid=e.id) }}" style="display:inline;">
+            <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('¿Eliminar este espacio?')">Eliminar</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div style="text-align:center; padding:2.5rem 0;">
+    <div style="font-size:2.5rem; margin-bottom:1rem;">🏫</div>
+    <p style="color:var(--muted);">No hay espacios registrados aún.</p>
+    <a href="{{ url_for('admin_espacio_nuevo') }}" class="btn btn-primary" style="margin-top:1rem;">Registrar primer espacio</a>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

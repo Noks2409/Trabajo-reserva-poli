@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Nueva contraseña — Politécnico Grancolombiano</title>
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&family=Nunito+Sans:wght@400;600&display=swap" rel="stylesheet">
+  <style>
+    :root { --navy:#0d2340; --cyan:#00b4d8; --cyan-dark:#0096b4; --cyan-light:#e0f7fc; --white:#ffffff; --border:#dce3ec; --text:#1a2b42; --muted:#6b7c93; --danger:#dc3545; --success:#28a745; --radius:8px; }
+    *, *::before, *::after { box-sizing:border-box; margin:0; padding:0; }
+    body { font-family:'Nunito Sans',sans-serif; background:var(--cyan-light); color:var(--text); min-height:100vh; display:flex; align-items:center; justify-content:center; padding:2rem 1rem; }
+    .box { width:100%; max-width:420px; }
+    .box-header { background:var(--navy); border-radius:8px 8px 0 0; padding:1.5rem 2rem; text-align:center; }
+    .box-header h1 { font-family:'Nunito',sans-serif; font-size:1.2rem; font-weight:800; color:var(--white); }
+    .box-header p  { font-size:.82rem; color:rgba(255,255,255,.5); margin-top:.3rem; }
+    .box-body { background:var(--white); border:1px solid var(--border); border-top:none; border-radius:0 0 8px 8px; padding:2rem; }
+    .form-group { margin-bottom:1rem; }
+    label { display:block; font-size:.78rem; color:var(--muted); font-weight:700; text-transform:uppercase; letter-spacing:.04em; margin-bottom:.4rem; }
+    .input-wrap { position:relative; }
+    input { width:100%; background:var(--cyan-light); border:1.5px solid var(--border); color:var(--text); padding:.7rem .9rem; border-radius:var(--radius); font-family:inherit; font-size:.9rem; padding-right:2.5rem; }
+    input:focus { outline:none; border-color:var(--cyan); box-shadow:0 0 0 3px rgba(0,180,216,.15); background:white; }
+    .eye-btn { position:absolute; right:.7rem; top:50%; transform:translateY(-50%); background:none; border:none; cursor:pointer; font-size:1rem; }
+    .btn { width:100%; padding:.78rem; background:var(--cyan); color:var(--navy); border:none; border-radius:var(--radius); font-family:'Nunito',sans-serif; font-size:.95rem; font-weight:800; cursor:pointer; margin-top:.5rem; }
+    .btn:hover { background:var(--cyan-dark); color:white; }
+    .alerts { margin-bottom:1rem; }
+    .alert { padding:.65rem .9rem; border-radius:var(--radius); font-size:.85rem; border-left:4px solid; margin-bottom:.5rem; }
+    .alert-danger { background:#fdecea; border-color:var(--danger); color:#8b1a1a; }
+  </style>
+</head>
+<body>
+<div class="box">
+  <div class="box-header">
+    <h1>🔐 Nueva contraseña</h1>
+    <p>Ingresa tu nueva contraseña</p>
+  </div>
+  <div class="box-body">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        <div class="alerts">
+          {% for cat, msg in messages %}
+            <div class="alert alert-{{ cat }}">{{ msg }}</div>
+          {% endfor %}
+        </div>
+      {% endif %}
+    {% endwith %}
+    <form method="POST">
+      <div class="form-group">
+        <label>Nueva contraseña</label>
+        <div class="input-wrap">
+          <input type="password" name="contrasena_nueva" id="pw1" required placeholder="Mínimo 6 caracteres"/>
+          <button type="button" class="eye-btn" onclick="toggle('pw1')">👁</button>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Confirmar nueva contraseña</label>
+        <div class="input-wrap">
+          <input type="password" name="contrasena_confirmar" id="pw2" required placeholder="Repite tu contraseña"/>
+          <button type="button" class="eye-btn" onclick="toggle('pw2')">👁</button>
+        </div>
+      </div>
+      <button type="submit" class="btn">Guardar nueva contraseña</button>
+    </form>
+  </div>
+</div>
+<script>
+function toggle(id) {
+  const i = document.getElementById(id);
+  i.type = i.type === 'password' ? 'text' : 'password';
+}
+</script>
+</body>
+</html>

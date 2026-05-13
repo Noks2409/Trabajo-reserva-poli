@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block title %}Nueva Agenda{% endblock %}
+{% block content %}
+<div class="page-header">
+  <h1>Nueva Agenda Semestral</h1>
+  <p>Define el período académico del semestre</p>
+</div>
+<div style="max-width:480px;">
+  <div class="card">
+    <form method="POST">
+      <div class="form-group">
+        <label>Semestre</label>
+        <input type="text" name="semestre" placeholder="ej: 2025-1" required/>
+      </div>
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:.75rem;">
+        <div class="form-group">
+          <label>Fecha inicio</label>
+          <input type="date" name="fecha_inicio" required/>
+        </div>
+        <div class="form-group">
+          <label>Fecha fin</label>
+          <input type="date" name="fecha_fin" required/>
+        </div>
+      </div>
+      <div style="background:#e0f7fc; border:1px solid #b3e5f0; border-radius:var(--radius); padding:.75rem 1rem; margin-bottom:1rem; font-size:.85rem; color:#005f73;">
+        ℹ️ Las restricciones horarias por defecto aplican automáticamente: lunes a sábado de 07:00 a 22:00.
+      </div>
+      <div style="display:flex; gap:.75rem;">
+        <button type="submit" class="btn btn-primary">Crear agenda</button>
+        <a href="{{ url_for('admin_agenda') }}" class="btn btn-secondary">Cancelar</a>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

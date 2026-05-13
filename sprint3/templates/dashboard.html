@@ -1,0 +1,104 @@
+{% extends "base.html" %}
+{% block title %}Inicio{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>Bienvenido, {{ usuario.nombre }} 👋</h1>
+  <p>
+    {% if usuario.rol == 'admin' %}Panel de administración del sistema de reservas
+    {% elif usuario.rol == 'docente' %}Gestiona tus reservas de espacios del auditorio
+    {% elif usuario.rol == 'administrativo' %}Solicita y consulta tus reservas
+    {% else %}Bienvenido al sistema de reservas de espacios
+    {% endif %}
+  </p>
+</div>
+
+<!-- Tarjeta de bienvenida -->
+<div class="card" style="margin-bottom: 1.5rem; border-left: 3px solid var(--accent);">
+  <div style="display:flex; align-items:center; gap:1rem;">
+    <div style="font-size:2.5rem;">
+      {% if usuario.rol == 'admin' %}🛡️
+      {% elif usuario.rol == 'docente' %}🎓
+      {% elif usuario.rol == 'administrativo' %}🏢
+      {% else %}🏛{% endif %}
+    </div>
+    <div>
+      <div style="font-weight:600; font-size:1.05rem;">{{ usuario.nombre }}</div>
+      <div style="color:var(--muted); font-size:.85rem;">{{ usuario.correo }}</div>
+      <span class="pill pill-{{ usuario.rol }}" style="margin-top:.4rem; display:inline-block;">
+        {{ usuario.rol }}
+      </span>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ PANEL ADMIN ═══ -->
+{% if usuario.rol == 'admin' %}
+<div class="grid grid-3" style="margin-bottom:1.5rem;">
+  <div class="card stat">
+    <div class="stat-icon">👥</div>
+    <div class="stat-value">—</div>
+    <div class="stat-label">Usuarios registrados</div>
+  </div>
+  <div class="card stat">
+    <div class="stat-icon">📋</div>
+    <div class="stat-value">—</div>
+    <div class="stat-label">Reservas pendientes</div>
+  </div>
+  <div class="card stat">
+    <div class="stat-icon">🏫</div>
+    <div class="stat-value">—</div>
+    <div class="stat-label">Espacios registrados</div>
+  </div>
+</div>
+
+<div class="grid grid-2">
+  <div class="card">
+    <div class="card-title">⚡ Acciones rápidas</div>
+    <div style="display:flex; flex-direction:column; gap:.6rem;">
+      <a href="{{ url_for('admin_usuarios') }}" class="btn btn-primary">Ver listado de usuarios</a>
+      <a href="{{ url_for('perfil') }}" class="btn btn-secondary">Mi perfil</a>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-title">📌 Próximos sprints</div>
+    <div style="font-size:.85rem; color:var(--muted); line-height:1.7;">
+      Sprint 4 → Gestión de usuarios<br>
+      Sprint 5 → Agenda y reservas<br>
+      Sprint 6 → Cancelación y modificación<br>
+      Sprint 7 → Panel admin completo<br>
+      Sprint 8 → Reportes y exportación
+    </div>
+  </div>
+</div>
+
+<!-- ═══ PANEL USUARIO ═══ -->
+{% else %}
+<div class="grid grid-2">
+  <div class="card">
+    <div class="card-title">⚡ Acciones rápidas</div>
+    <div style="display:flex; flex-direction:column; gap:.6rem;">
+      <a href="{{ url_for('perfil') }}" class="btn btn-primary">Ver mi perfil</a>
+    </div>
+    <p style="font-size:.8rem; color:var(--muted); margin-top:1rem;">
+      Las funciones de reservas estarán disponibles en el Sprint 5.
+    </p>
+  </div>
+  <div class="card">
+    <div class="card-title">ℹ️ Tu información</div>
+    <table>
+      <tr><td style="color:var(--muted); width:40%;">Rol</td><td><span class="pill pill-{{ usuario.rol }}">{{ usuario.rol }}</span></td></tr>
+      {% if usuario.rol == 'docente' %}
+      <tr><td style="color:var(--muted);">Código</td><td>{{ usuario.cod_docente or '—' }}</td></tr>
+      <tr><td style="color:var(--muted);">Depto.</td><td>{{ usuario.departamento or '—' }}</td></tr>
+      {% elif usuario.rol == 'administrativo' %}
+      <tr><td style="color:var(--muted);">Dependencia</td><td>{{ usuario.dependencia or '—' }}</td></tr>
+      {% elif usuario.rol == 'externa' %}
+      <tr><td style="color:var(--muted);">Empresa</td><td>{{ usuario.empresa or '—' }}</td></tr>
+      <tr><td style="color:var(--muted);">Teléfono</td><td>{{ usuario.telefono or '—' }}</td></tr>
+      {% endif %}
+    </table>
+  </div>
+</div>
+{% endif %}
+{% endblock %}

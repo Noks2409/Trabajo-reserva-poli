@@ -1,0 +1,205 @@
+{% extends "base.html" %}
+{% block title %}Calendario de Reservas{% endblock %}
+
+{% block head %}
+<link href="https://cdn.jsdelivr.net/npm/fullcalendar@5.11.3/main.min.css" rel="stylesheet"/>
+<script src="https://cdn.jsdelivr.net/npm/fullcalendar@5.11.3/main.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/fullcalendar@5.11.3/locales/es.min.js"></script>
+<style>
+  /* ─── Leyenda ─────────────────────────────── */
+  .espacio-card {
+    display:flex; align-items:center; gap:.9rem;
+    background:#fff; border:1.5px solid var(--border);
+    border-radius:10px; padding:.85rem 1rem;
+    box-shadow: 0 1px 6px rgba(13,35,64,.07);
+    transition: transform .15s, box-shadow .15s;
+  }
+  .espacio-card:hover { transform:translateY(-2px); box-shadow:0 4px 16px rgba(13,35,64,.12); }
+  .espacio-dot {
+    width:14px; height:14px; border-radius:50%; flex-shrink:0;
+  }
+  .espacio-info { flex:1; }
+  .espacio-nombre { font-weight:700; font-size:.88rem; color:var(--navy); }
+  .espacio-cap { font-size:.76rem; color:var(--muted); margin-top:.15rem; }
+  .espacio-badge {
+    font-size:.7rem; font-weight:700; padding:3px 9px;
+    border-radius:20px; background:#e0f7fc; color:#005f73;
+  }
+
+  /* ─── Status legend ──────────────────────── */
+  .status-legend { display:flex; gap:1.5rem; flex-wrap:wrap; align-items:center; }
+  .status-item { display:flex; align-items:center; gap:.5rem; font-size:.82rem; color:var(--muted); }
+  .status-box { width:28px; height:14px; border-radius:3px; }
+
+  /* ─── FullCalendar overrides ─────────────── */
+  #calendar .fc-toolbar-title { font-family:'Nunito',sans-serif; color:var(--navy); font-size:1.2rem; font-weight:800; }
+  #calendar .fc-button { background:var(--navy) !important; border-color:var(--navy) !important; font-family:'Nunito Sans',sans-serif; font-size:.82rem; }
+  #calendar .fc-button:hover { background:var(--navy-mid) !important; }
+  #calendar .fc-button-active { background:var(--cyan) !important; border-color:var(--cyan) !important; color:var(--navy) !important; }
+  #calendar .fc-daygrid-day-number { color:var(--navy); font-weight:600; }
+  #calendar .fc-col-header-cell { background:var(--navy); }
+  #calendar .fc-col-header-cell-cushion { color:#fff; font-size:.8rem; font-weight:700; text-decoration:none; }
+  #calendar .fc-event { border-radius:5px !important; font-size:.78rem !important; cursor:pointer; }
+  #calendar .fc-day-today { background:rgba(0,180,216,.08) !important; }
+  #calendar .fc-timegrid-slot { height:30px !important; }
+
+  /* ─── Modal ──────────────────────────────── */
+  #modalOverlay {
+    display:none; position:fixed; inset:0; background:rgba(8,22,41,.55);
+    z-index:9999; align-items:center; justify-content:center;
+    backdrop-filter:blur(2px);
+  }
+  #modalOverlay.open { display:flex; }
+  #modalBox {
+    background:#fff; border-radius:14px; padding:2rem;
+    width:100%; max-width:440px; box-shadow:0 8px 40px rgba(0,0,0,.25);
+    animation: slideUp .2s ease;
+  }
+  @keyframes slideUp { from{opacity:0;transform:translateY(16px)} to{opacity:1;transform:translateY(0)} }
+  #modalBox h3 { font-family:'Nunito',sans-serif; color:var(--navy); font-size:1.05rem; margin-bottom:1rem; }
+  .modal-row { display:flex; justify-content:space-between; padding:.45rem 0;
+               border-bottom:1px solid var(--border); font-size:.87rem; }
+  .modal-row:last-child { border:none; }
+  .modal-label { color:var(--muted); font-weight:600; }
+  .modal-close { position:absolute; top:1rem; right:1.2rem; background:none; border:none;
+                 font-size:1.3rem; cursor:pointer; color:var(--muted); }
+  #modalBox { position:relative; }
+  .pill-aprobada { background:#eaf7ee; color:#1a6630; }
+  .pill-pendiente { background:#fff8e1; color:#7a5c00; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>📅 Calendario de Reservas</h1>
+  <p>Visualiza la ocupación de todos los espacios del auditorio en tiempo real</p>
+</div>
+
+<!-- Espacios y capacidades -->
+<div class="card" style="margin-bottom:1.5rem;">
+  <div class="card-title">🏛️ Espacios — Capacidad máxima</div>
+  <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:.85rem; margin-bottom:1.2rem;">
+    {% set INFO = [
+      ("Sala B1",               50,  "#00b4d8"),
+      ("Sala B2",               50,  "#0077a8"),
+      ("Sala B3",               100, "#4361ee"),
+      ("Sala de Música y Baile",100, "#7b2d8b"),
+      ("Auditorio Completo",    200, "#e06c00"),
+    ] %}
+    {% for nombre, cap, color in INFO %}
+    <div class="espacio-card">
+      <div class="espacio-dot" style="background:{{ color }};"></div>
+      <div class="espacio-info">
+        <div class="espacio-nombre">{{ nombre }}</div>
+        <div class="espacio-cap">Máx. {{ cap }} personas</div>
+      </div>
+      <span class="espacio-badge">{{ cap }} pax</span>
+    </div>
+    {% endfor %}
+  </div>
+
+  <div class="status-legend">
+    <span style="font-size:.8rem; font-weight:700; color:var(--muted);">Estado:</span>
+    <div class="status-item">
+      <div class="status-box" style="background:#00b4d8;"></div> ✅ Aprobada
+    </div>
+    <div class="status-item">
+      <div class="status-box" style="background:#00b4d899;"></div> ⏳ En revisión (pendiente)
+    </div>
+  </div>
+</div>
+
+<!-- Calendario -->
+<div class="card">
+  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1.2rem; flex-wrap:wrap; gap:.75rem;">
+    <div class="card-title" style="margin:0;">📆 Vista mensual / semanal / diaria</div>
+    <a href="{{ url_for('reserva_nueva') }}" class="btn btn-primary">➕ Nueva reserva</a>
+  </div>
+  <div id="calendar"></div>
+</div>
+
+<!-- Modal de detalle -->
+<div id="modalOverlay">
+  <div id="modalBox">
+    <button class="modal-close" onclick="cerrarModal()">✕</button>
+    <h3 id="modalTitulo"></h3>
+    <div class="modal-row"><span class="modal-label">Espacio</span><span id="mEspacio"></span></div>
+    <div class="modal-row"><span class="modal-label">Tipo de evento</span><span id="mTipo"></span></div>
+    <div class="modal-row"><span class="modal-label">Finalidad</span><span id="mFinalidad"></span></div>
+    <div class="modal-row"><span class="modal-label">Fecha</span><span id="mFecha"></span></div>
+    <div class="modal-row"><span class="modal-label">Horario</span><span id="mHorario"></span></div>
+    <div class="modal-row"><span class="modal-label">Personas</span><span id="mPersonas"></span></div>
+    <div class="modal-row"><span class="modal-label">Estado</span><span id="mEstado"></span></div>
+    <div style="margin-top:1.2rem; text-align:right;">
+      <button class="btn btn-secondary btn-sm" onclick="cerrarModal()">Cerrar</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const DIAS_ES = ["domingo","lunes","martes","miércoles","jueves","viernes","sábado"];
+const MESES_ES = ["enero","febrero","marzo","abril","mayo","junio","julio","agosto","septiembre","octubre","noviembre","diciembre"];
+
+function formatFecha(dateStr) {
+  const d = new Date(dateStr + "T00:00:00");
+  return `${d.getDate()} de ${MESES_ES[d.getMonth()]} de ${d.getFullYear()} (${DIAS_ES[d.getDay()]})`;
+}
+
+function abrirModal(info) {
+  const p = info.event.extendedProps;
+  const start = info.event.start;
+  document.getElementById("modalTitulo").textContent = p.espacio;
+  document.getElementById("mEspacio").textContent    = p.espacio;
+  document.getElementById("mTipo").textContent       = p.tipo_evento;
+  document.getElementById("mFinalidad").textContent  = p.finalidad || "—";
+  document.getElementById("mFecha").textContent      = formatFecha(info.event.startStr.split("T")[0]);
+  document.getElementById("mHorario").textContent    = `${p.hora_inicio} – ${p.hora_fin}`;
+  document.getElementById("mPersonas").textContent   = `${p.personas} personas`;
+  const estadoEl = document.getElementById("mEstado");
+  if (p.estado === "aprobada") {
+    estadoEl.innerHTML = `<span class="pill pill-aprobada" style="padding:3px 10px;border-radius:20px;font-size:.75rem;font-weight:700;">✅ Aprobada</span>`;
+  } else {
+    estadoEl.innerHTML = `<span class="pill pill-pendiente" style="padding:3px 10px;border-radius:20px;font-size:.75rem;font-weight:700;">⏳ En revisión</span>`;
+  }
+  document.getElementById("modalOverlay").classList.add("open");
+}
+
+function cerrarModal() {
+  document.getElementById("modalOverlay").classList.remove("open");
+}
+document.getElementById("modalOverlay").addEventListener("click", function(e){
+  if (e.target === this) cerrarModal();
+});
+
+document.addEventListener("DOMContentLoaded", function() {
+  const calEl = document.getElementById("calendar");
+  const calendar = new FullCalendar.Calendar(calEl, {
+    locale: "es",
+    initialView: "dayGridMonth",
+    headerToolbar: {
+      left:   "prev,next today",
+      center: "title",
+      right:  "dayGridMonth,timeGridWeek,timeGridDay"
+    },
+    buttonText: { today:"Hoy", month:"Mes", week:"Semana", day:"Día" },
+    slotMinTime: "07:00:00",
+    slotMaxTime: "22:00:00",
+    slotDuration: "00:30:00",
+    height: "auto",
+    events: "/api/eventos-calendario",
+    eventClick: abrirModal,
+    eventDidMount: function(info) {
+      if (info.event.extendedProps.estado === "pendiente") {
+        info.el.style.opacity = "0.72";
+        info.el.style.borderStyle = "dashed";
+      }
+    },
+    noEventsText: "Sin reservas en este periodo",
+    loading: function(isLoading) {
+      // optional spinner
+    }
+  });
+  calendar.render();
+});
+</script>
+{% endblock %}

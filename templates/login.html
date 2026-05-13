@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Iniciar sesión — Politécnico Grancolombiano</title>
+  <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate, max-age=0"/>
+  <meta http-equiv="Pragma" content="no-cache"/>
+  <meta http-equiv="Expires" content="-1"/>
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&family=Nunito+Sans:wght@400;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --navy:#0d2340; --navy-dark:#081629; --cyan:#00b4d8; --cyan-dark:#0096b4;
+      --cyan-light:#e0f7fc; --white:#ffffff; --border:#dce3ec;
+      --text:#1a2b42; --muted:#6b7c93; --danger:#dc3545; --success:#28a745; --radius:8px;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Nunito Sans', sans-serif; background: var(--cyan-light); color: var(--text); min-height: 100vh; display: flex; flex-direction: column; }
+
+    /* ── Top strip ── */
+    .top-strip { background: var(--navy); padding: .4rem 2rem; display: flex; justify-content: space-between; align-items: center; }
+    .top-strip span { font-size: .73rem; color: rgba(255,255,255,.45); }
+
+    /* ── Main layout ── */
+    .hero { flex: 1; display: grid; grid-template-columns: 1fr 420px; min-height: calc(100vh - 40px - 48px); }
+
+    /* ── Carousel side ── */
+    .carousel-side { position: relative; overflow: hidden; background: var(--navy); }
+    .carousel-slide {
+      position: absolute; inset: 0;
+      background-size: cover; background-position: center;
+      opacity: 0; transition: opacity 1s ease;
+    }
+    .carousel-slide.active { opacity: 1; }
+    .carousel-slide::after {
+      content: '';
+      position: absolute; inset: 0;
+      background: linear-gradient(135deg, rgba(13,35,64,.75) 0%, rgba(0,180,216,.25) 100%);
+    }
+    .carousel-text {
+      position: absolute; bottom: 0; left: 0; right: 0;
+      z-index: 2; padding: 2.5rem;
+      background: linear-gradient(transparent, rgba(8,22,41,.85));
+    }
+    .carousel-label { font-size: .72rem; font-weight: 700; color: var(--cyan); text-transform: uppercase; letter-spacing: .15em; margin-bottom: .5rem; }
+    .carousel-title { font-family: 'Nunito', sans-serif; font-size: 1.9rem; font-weight: 800; color: var(--white); line-height: 1.2; }
+    .carousel-title span { color: var(--cyan); }
+    .carousel-desc { color: rgba(255,255,255,.65); font-size: .88rem; margin-top: .6rem; line-height: 1.6; }
+
+    /* Dots */
+    .carousel-dots { position: absolute; bottom: 1.2rem; right: 1.5rem; z-index: 3; display: flex; gap: .4rem; }
+    .dot { width: 8px; height: 8px; border-radius: 50%; background: rgba(255,255,255,.35); cursor: pointer; transition: background .3s; border: none; }
+    .dot.active { background: var(--cyan); }
+
+    /* ── Login panel ── */
+    .login-panel { background: var(--white); display: flex; flex-direction: column; justify-content: center; padding: 3rem 2.5rem; box-shadow: -4px 0 24px rgba(0,0,0,.12); }
+    .login-logo { display: block; height: 110px; margin: 0 auto 1.8rem; }
+    .login-panel h2 { font-family: 'Nunito', sans-serif; font-size: 1.3rem; font-weight: 800; color: var(--navy); margin-bottom: .25rem; text-align: center; }
+    .login-panel .sub { font-size: .82rem; color: var(--muted); margin-bottom: 2rem; text-align: center; }
+
+    .form-group { margin-bottom: 1.1rem; }
+    label { display: block; font-size: .76rem; color: var(--muted); font-weight: 700; text-transform: uppercase; letter-spacing: .05em; margin-bottom: .4rem; }
+    input { width: 100%; background: var(--cyan-light); border: 1.5px solid var(--border); color: var(--text); padding: .7rem .9rem; border-radius: var(--radius); font-family: inherit; font-size: .9rem; transition: border-color .2s, box-shadow .2s; }
+    input:focus { outline: none; border-color: var(--cyan); box-shadow: 0 0 0 3px rgba(0,180,216,.15); background: white; }
+    input::placeholder { color: #b0bcc8; }
+
+    .btn-login { width: 100%; padding: .8rem; background: var(--cyan); color: var(--navy); border: none; border-radius: var(--radius); font-family: 'Nunito', sans-serif; font-size: .95rem; font-weight: 800; cursor: pointer; transition: all .2s; margin-top: .5rem; letter-spacing: .02em; }
+    .btn-login:hover { background: var(--cyan-dark); color: white; }
+
+    .alerts { margin-bottom: 1rem; }
+    .alert { padding: .7rem .9rem; border-radius: var(--radius); font-size: .85rem; border-left: 4px solid; margin-bottom: .5rem; }
+    .alert-danger  { background: #fdecea; border-color: var(--danger); color: #8b1a1a; }
+    .alert-success { background: #eaf7ee; border-color: var(--success); color: #1a6630; }
+    .alert-info    { background: var(--cyan-light); border-color: var(--cyan); color: #005f73; }
+    .alert-warning { background: #fff8e1; border-color: #e6a817; color: #7a5c00; }
+
+    .footer-link { text-align: center; margin-top: 1.5rem; font-size: .85rem; color: var(--muted); }
+    .footer-link a { color: var(--cyan-dark); font-weight: 700; }
+
+    footer { background: var(--navy); color: rgba(255,255,255,.4); text-align: center; padding: .9rem; font-size: .73rem; }
+    footer strong { color: var(--cyan); }
+
+    @media (max-width: 768px) {
+      .hero { grid-template-columns: 1fr; }
+      .carousel-side { display: none; }
+      .login-panel { padding: 2rem 1.5rem; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="top-strip">
+  <span>Sistema de Reservas de Espacios</span>
+</div>
+
+<div class="hero">
+
+  <!-- Carrusel -->
+  <div class="carousel-side" id="carousel">
+
+    <div class="carousel-slide active" style="background-image:url('{{ url_for("static", filename="img/campus1.png") }}')"></div>
+    <div class="carousel-slide" style="background-image:url('{{ url_for("static", filename="img/campus2.png") }}')"></div>
+
+    <div class="carousel-text">
+      <div class="carousel-label">Institución Universitaria</div>
+      <h1 class="carousel-title">Bienvenido al portal de<br><span>Reservas de Espacios</span></h1>
+      <p class="carousel-desc">Gestiona de manera fácil y rápida la reserva de auditorios, salones y espacios del Politécnico Grancolombiano.</p>
+    </div>
+
+    <div class="carousel-dots">
+      <button class="dot active" onclick="goTo(0)"></button>
+      <button class="dot" onclick="goTo(1)"></button>
+    </div>
+  </div>
+
+  <!-- Panel login -->
+  <div class="login-panel">
+    <img class="login-logo" src="{{ url_for('static', filename='img/logo_poli.png') }}" alt="Politécnico Grancolombiano"/>
+    <h2>Ingresar al sistema</h2>
+    <p class="sub">Ingresa tus datos para continuar</p>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        <div class="alerts">
+          {% for cat, msg in messages %}
+            <div class="alert alert-{{ cat }}">{{ msg }}</div>
+          {% endfor %}
+        </div>
+      {% endif %}
+    {% endwith %}
+
+    <form method="POST">
+      <div class="form-group">
+        <label>Correo</label>
+        <input type="email" name="correo" placeholder="Tu correo electrónico" required autofocus/>
+      </div>
+      <div class="form-group">
+        <label>Contraseña</label>
+        <input type="password" name="contrasena" placeholder="••••••••" required/>
+      </div>
+      <button type="submit" class="btn-login">Iniciar sesión</button>
+    </form>
+
+    <p class="footer-link">¿No tienes cuenta? <a href="{{ url_for('registro') }}">Regístrate aquí</a></p>
+    <p class="footer-link" style="margin-top:.5rem;"><a href="{{ url_for('recuperar_contrasena') }}">¿Olvidaste tu contraseña?</a></p>
+  </div>
+</div>
+
+<footer><strong>Politécnico Grancolombiano</strong> — Institución Universitaria</footer>
+
+<script>
+  let current = 0;
+  const slides = document.querySelectorAll('.carousel-slide');
+  const dots   = document.querySelectorAll('.dot');
+
+  function goTo(n) {
+    slides[current].classList.remove('active');
+    dots[current].classList.remove('active');
+    current = n;
+    slides[current].classList.add('active');
+    dots[current].classList.add('active');
+  }
+
+  setInterval(() => goTo((current + 1) % slides.length), 5000);
+</script>
+</body>
+</html>

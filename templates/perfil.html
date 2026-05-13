@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% block title %}Mi perfil{% endblock %}
+{% block content %}
+<div class="page-header">
+  <h1>Mi perfil</h1>
+  <p>Consulta y administra tu información personal</p>
+</div>
+
+<!-- Avatar hero -->
+<div style="display:flex; align-items:center; gap:1.5rem; background:linear-gradient(135deg,var(--navy) 0%,var(--navy-mid) 100%); border-radius:14px; padding:1.75rem 2rem; margin-bottom:1.5rem; box-shadow:0 4px 20px rgba(13,35,64,.2);">
+  <!-- Monigote SVG -->
+  <div style="width:88px; height:88px; background:rgba(255,255,255,.1); border:2.5px solid rgba(0,180,216,.45); border-radius:50%; display:flex; align-items:center; justify-content:center; flex-shrink:0;">
+    <svg width="58" height="58" viewBox="0 0 52 52" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <circle cx="26" cy="17" r="9" fill="rgba(255,255,255,0.8)"/>
+      <path d="M8 44c0-9.941 8.059-18 18-18s18 8.059 18 18" stroke="rgba(255,255,255,0.8)" stroke-width="4" stroke-linecap="round"/>
+    </svg>
+  </div>
+  <div>
+    <div style="font-size:.75rem; font-weight:700; color:var(--cyan); text-transform:uppercase; letter-spacing:.08em;">Perfil de usuario</div>
+    <div style="font-family:'Nunito',sans-serif; font-size:1.5rem; font-weight:800; color:#fff; margin:.25rem 0;">{{ usuario.nombre }}</div>
+    <div style="font-size:.85rem; color:rgba(255,255,255,.55); margin-bottom:.6rem;">{{ usuario.correo }}</div>
+    <span class="pill pill-{{ usuario.rol }}" style="background:rgba(0,180,216,.2); color:var(--cyan); border:1px solid rgba(0,180,216,.35);">{{ usuario.rol }}</span>
+  </div>
+</div>
+
+<div class="grid grid-2">
+  <div class="card">
+    <div class="card-title">📋 Información personal</div>
+    <table>
+      <tr><td style="color:var(--muted); width:40%;">Nombre</td><td><strong>{{ usuario.nombre }}</strong></td></tr>
+      <tr><td style="color:var(--muted);">Correo</td><td>{{ usuario.correo }}</td></tr>
+      <tr><td style="color:var(--muted);">Rol</td><td><span class="pill pill-{{ usuario.rol }}">{{ usuario.rol }}</span></td></tr>
+      {% if usuario.rol == 'docente' %}
+      <tr><td style="color:var(--muted);">Código</td><td>{{ usuario.cod_docente or '—' }}</td></tr>
+      <tr><td style="color:var(--muted);">Departamento</td><td>{{ usuario.departamento or '—' }}</td></tr>
+      {% elif usuario.rol == 'administrativo' %}
+      <tr><td style="color:var(--muted);">Dependencia</td><td>{{ usuario.dependencia or '—' }}</td></tr>
+      {% elif usuario.rol == 'externa' %}
+      <tr><td style="color:var(--muted);">Empresa</td><td>{{ usuario.empresa or '—' }}</td></tr>
+      <tr><td style="color:var(--muted);">Teléfono</td><td>{{ usuario.telefono or '—' }}</td></tr>
+      {% endif %}
+    </table>
+    <hr>
+    <a href="{{ url_for('editar_perfil') }}" class="btn btn-primary btn-sm">✏️ Editar perfil</a>
+  </div>
+  <div class="card">
+    <div class="card-title">🔒 Seguridad</div>
+    <p style="font-size:.875rem; color:var(--muted); margin-bottom:1rem;">Puedes cambiar tu contraseña desde la pantalla de edición de perfil.</p>
+    <a href="{{ url_for('editar_perfil') }}" class="btn btn-secondary btn-sm">Cambiar contraseña</a>
+    <hr>
+    <div class="card-title" style="margin-top:0;">🚪 Sesión</div>
+    <p style="font-size:.875rem; color:var(--muted); margin-bottom:1rem;">Sesión activa como <strong>{{ usuario.nombre }}</strong>.</p>
+    <a href="{{ url_for('logout') }}" class="btn btn-danger btn-sm">Cerrar sesión</a>
+  </div>
+</div>
+{% endblock %}
+

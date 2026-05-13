@@ -1,0 +1,464 @@
+{% extends "base.html" %}
+{% block title %}Inicio{% endblock %}
+
+{% block head %}
+<style>
+/* ── Hero ────────────────────────────────────────────────── */
+.hero {
+  background: linear-gradient(135deg, var(--navy) 0%, var(--navy-mid) 60%, #0a3a5c 100%);
+  border-radius: 14px;
+  padding: 2rem 2.2rem;
+  margin-bottom: 1.75rem;
+  display: flex;
+  align-items: center;
+  gap: 1.75rem;
+  box-shadow: 0 4px 24px rgba(13,35,64,.22);
+  position: relative;
+  overflow: hidden;
+}
+.hero::before {
+  content: '';
+  position: absolute;
+  top: -40px; right: -40px;
+  width: 200px; height: 200px;
+  background: radial-gradient(circle, rgba(0,180,216,.18) 0%, transparent 70%);
+  pointer-events: none;
+}
+.hero::after {
+  content: '';
+  position: absolute;
+  bottom: -30px; left: 30%;
+  width: 160px; height: 160px;
+  background: radial-gradient(circle, rgba(0,180,216,.10) 0%, transparent 70%);
+  pointer-events: none;
+}
+.hero-avatar {
+  flex-shrink: 0;
+  width: 80px; height: 80px;
+  background: rgba(255,255,255,.10);
+  border: 2.5px solid rgba(0,180,216,.45);
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  position: relative;
+}
+.hero-avatar svg { width: 52px; height: 52px; }
+.hero-role-badge {
+  position: absolute;
+  bottom: -4px; right: -4px;
+  background: var(--cyan);
+  border-radius: 50%;
+  width: 26px; height: 26px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: .9rem;
+  box-shadow: 0 2px 6px rgba(0,0,0,.3);
+}
+.hero-info { flex: 1; min-width: 0; }
+.hero-greeting {
+  font-size: .8rem; font-weight: 700; color: var(--cyan);
+  text-transform: uppercase; letter-spacing: .08em; margin-bottom: .3rem;
+}
+.hero-name {
+  font-family: 'Nunito', sans-serif;
+  font-size: 1.65rem; font-weight: 800;
+  color: #ffffff; line-height: 1.15;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.hero-sub {
+  font-size: .85rem; color: rgba(255,255,255,.55); margin-top: .35rem;
+}
+.hero-pills { display: flex; gap: .5rem; flex-wrap: wrap; margin-top: .75rem; }
+.hero-pill {
+  font-size: .7rem; font-weight: 700;
+  padding: 3px 12px; border-radius: 20px;
+  border: 1px solid rgba(0,180,216,.4);
+  color: var(--cyan); background: rgba(0,180,216,.1);
+  text-transform: uppercase; letter-spacing: .05em;
+}
+.hero-actions { display: flex; flex-direction: column; gap: .5rem; flex-shrink: 0; }
+
+/* ── Stat cards ──────────────────────────────────────────── */
+.stat-card {
+  background: var(--white);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 1.3rem 1.5rem;
+  box-shadow: var(--shadow);
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  transition: transform .2s, box-shadow .2s;
+}
+.stat-card:hover { transform: translateY(-3px); box-shadow: 0 6px 20px rgba(13,35,64,.13); }
+.stat-icon-wrap {
+  width: 52px; height: 52px; border-radius: 12px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1.5rem; flex-shrink: 0;
+}
+.si-cyan   { background: var(--cyan-light); }
+.si-navy   { background: #e8edf6; }
+.si-green  { background: #eaf7ee; }
+.si-yellow { background: #fff8e1; }
+.stat-body { flex: 1; }
+.stat-num {
+  font-family: 'Nunito', sans-serif;
+  font-size: 1.9rem; font-weight: 800; color: var(--navy); line-height: 1;
+}
+.stat-lbl { font-size: .78rem; color: var(--muted); margin-top: .25rem; font-weight: 600; }
+
+/* ── Section header ──────────────────────────────────────── */
+.sec-head {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 1rem;
+}
+.sec-title {
+  font-family: 'Nunito', sans-serif;
+  font-size: 1rem; font-weight: 800; color: var(--navy);
+  display: flex; align-items: center; gap: .45rem;
+}
+.sec-dot {
+  width: 8px; height: 8px; border-radius: 50%; background: var(--cyan);
+  display: inline-block;
+}
+
+/* ── Quick action cards ─────────────────────────────────── */
+.qa-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: .85rem; }
+.qa-card {
+  background: var(--white);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 1.2rem 1rem;
+  text-align: center;
+  cursor: pointer;
+  transition: all .2s;
+  text-decoration: none !important;
+  display: flex; flex-direction: column; align-items: center; gap: .55rem;
+  box-shadow: var(--shadow);
+}
+.qa-card:hover {
+  border-color: var(--cyan);
+  box-shadow: 0 4px 18px rgba(0,180,216,.18);
+  transform: translateY(-3px);
+}
+.qa-icon {
+  width: 48px; height: 48px; border-radius: 12px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1.4rem;
+}
+.qa-label {
+  font-size: .8rem; font-weight: 700; color: var(--navy);
+  font-family: 'Nunito', sans-serif; line-height: 1.2;
+}
+
+/* ── Espacios cards ──────────────────────────────────────── */
+.espacio-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(175px, 1fr)); gap: .85rem; }
+.espacio-card {
+  background: var(--white);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 1rem 1.1rem;
+  box-shadow: var(--shadow);
+  border-top: 3px solid var(--cyan);
+  transition: transform .2s, box-shadow .2s;
+}
+.espacio-card:hover { transform: translateY(-2px); box-shadow: 0 6px 18px rgba(13,35,64,.12); }
+.espacio-name {
+  font-weight: 700; font-size: .88rem; color: var(--navy);
+  font-family: 'Nunito', sans-serif; margin-bottom: .3rem;
+}
+.espacio-cap {
+  font-size: .78rem; color: var(--muted);
+  display: flex; align-items: center; gap: .3rem;
+}
+
+/* ── Activity table ──────────────────────────────────────── */
+.activity-empty {
+  text-align: center; padding: 2.5rem 1rem;
+  color: var(--muted); font-size: .9rem;
+}
+.activity-empty-icon { font-size: 2.5rem; margin-bottom: .75rem; opacity: .5; }
+
+/* ── Estado pills en tabla ───────────────────────────────── */
+.p-pendiente { background:#fff8e1; color:#7a5c00; }
+.p-aprobada  { background:#eaf7ee; color:#1a6630; }
+.p-rechazada { background:#fdecea; color:#8b1a1a; }
+.p-cancelada { background:#f4f6f9; color:var(--muted); }
+
+/* ── Info card de usuario ────────────────────────────────── */
+.info-row { display:flex; justify-content:space-between; align-items:center; padding:.55rem 0; border-bottom:1px solid var(--border); font-size:.875rem; }
+.info-row:last-child { border-bottom:none; }
+.info-key { color:var(--muted); font-weight:600; font-size:.78rem; text-transform:uppercase; letter-spacing:.04em; }
+
+/* ── Progress bar ────────────────────────────────────────── */
+.progress-bar-wrap { background:#eaf8fc; border-radius:20px; height:6px; margin-top:.4rem; overflow:hidden; }
+.progress-bar-fill { background: linear-gradient(90deg, var(--cyan), var(--cyan-dark)); border-radius:20px; height:100%; transition: width .6s ease; }
+
+@keyframes fadeUp {
+  from { opacity:0; transform:translateY(14px); }
+  to   { opacity:1; transform:translateY(0); }
+}
+.anim-1 { animation: fadeUp .35s ease both; }
+.anim-2 { animation: fadeUp .35s .08s ease both; }
+.anim-3 { animation: fadeUp .35s .16s ease both; }
+.anim-4 { animation: fadeUp .35s .24s ease both; }
+.anim-5 { animation: fadeUp .35s .32s ease both; }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<!-- ═══════════════════════ HERO ═══════════════════════════ -->
+<div class="hero anim-1">
+  <div class="hero-avatar">
+    <!-- Monigote SVG genérico -->
+    <svg viewBox="0 0 52 52" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <circle cx="26" cy="17" r="9" fill="rgba(255,255,255,0.75)"/>
+      <path d="M8 44c0-9.941 8.059-18 18-18s18 8.059 18 18" stroke="rgba(255,255,255,0.75)" stroke-width="4" stroke-linecap="round"/>
+    </svg>
+    <div class="hero-role-badge">
+      {% if usuario.rol == 'admin' %}🛡️
+      {% elif usuario.rol == 'docente' %}🎓
+      {% elif usuario.rol == 'administrativo' %}🏢
+      {% else %}🏛{% endif %}
+    </div>
+  </div>
+
+  <div class="hero-info">
+    <div class="hero-greeting">Bienvenido de nuevo</div>
+    <div class="hero-name">{{ usuario.nombre }}</div>
+    <div class="hero-sub">{{ usuario.correo }}</div>
+    <div class="hero-pills">
+      <span class="hero-pill">{{ usuario.rol }}</span>
+      {% if usuario.rol == 'docente' and usuario.departamento %}
+        <span class="hero-pill">{{ usuario.departamento }}</span>
+      {% elif usuario.rol == 'administrativo' and usuario.dependencia %}
+        <span class="hero-pill">{{ usuario.dependencia }}</span>
+      {% elif usuario.rol == 'externa' and usuario.empresa %}
+        <span class="hero-pill">{{ usuario.empresa }}</span>
+      {% endif %}
+      <span class="hero-pill">{{ mis_total }} reserva{{ 's' if mis_total != 1 else '' }}</span>
+    </div>
+  </div>
+
+  <div class="hero-actions">
+    <a href="{{ url_for('reserva_nueva') }}" class="btn btn-primary">＋ Nueva reserva</a>
+    <a href="{{ url_for('perfil') }}" class="btn btn-secondary" style="background:rgba(255,255,255,.12); border-color:rgba(255,255,255,.25); color:#fff;">👤 Mi perfil</a>
+  </div>
+</div>
+
+<!-- ═══════════════════════ STATS ══════════════════════════ -->
+{% if usuario.rol == 'admin' %}
+<div class="grid grid-3 anim-2" style="margin-bottom:1.75rem;">
+  <div class="stat-card">
+    <div class="stat-icon-wrap si-cyan">👥</div>
+    <div class="stat-body">
+      <div class="stat-num">{{ total_usuarios }}</div>
+      <div class="stat-lbl">Usuarios registrados</div>
+    </div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon-wrap si-yellow">⏳</div>
+    <div class="stat-body">
+      <div class="stat-num">{{ total_pendientes }}</div>
+      <div class="stat-lbl">Reservas en revisión</div>
+      {% if total_pendientes > 0 %}
+      <div class="progress-bar-wrap" style="margin-top:.5rem;">
+        <div class="progress-bar-fill" style="width:100%; background:linear-gradient(90deg,#e6a817,#f7c948);"></div>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon-wrap si-green">✅</div>
+    <div class="stat-body">
+      <div class="stat-num">{{ total_aprobadas }}</div>
+      <div class="stat-lbl">Reservas aprobadas</div>
+    </div>
+  </div>
+</div>
+{% else %}
+<div class="grid grid-3 anim-2" style="margin-bottom:1.75rem;">
+  <div class="stat-card">
+    <div class="stat-icon-wrap si-cyan">📋</div>
+    <div class="stat-body">
+      <div class="stat-num">{{ mis_total }}</div>
+      <div class="stat-lbl">Mis reservas totales</div>
+    </div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon-wrap si-yellow">⏳</div>
+    <div class="stat-body">
+      <div class="stat-num">{{ mis_pendientes }}</div>
+      <div class="stat-lbl">En revisión</div>
+    </div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon-wrap si-green">✅</div>
+    <div class="stat-body">
+      <div class="stat-num">{{ mis_aprobadas }}</div>
+      <div class="stat-lbl">Confirmadas</div>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<!-- ═══════════════════════ FILA PRINCIPAL ═════════════════ -->
+<div class="grid grid-2 anim-3" style="margin-bottom:1.75rem;">
+
+  <!-- Acciones rápidas -->
+  <div class="card">
+    <div class="sec-head">
+      <div class="sec-title"><span class="sec-dot"></span> Acciones rápidas</div>
+    </div>
+    <div class="qa-grid">
+      <a href="{{ url_for('reserva_nueva') }}" class="qa-card">
+        <div class="qa-icon si-cyan">📅</div>
+        <div class="qa-label">Nueva<br>reserva</div>
+      </a>
+      <a href="{{ url_for('mis_reservas') }}" class="qa-card">
+        <div class="qa-icon si-navy">📋</div>
+        <div class="qa-label">Mis<br>reservas</div>
+      </a>
+      <a href="{{ url_for('calendario') }}" class="qa-card">
+        <div class="qa-icon" style="background:#f3e8ff;">🗓</div>
+        <div class="qa-label">Ver<br>calendario</div>
+      </a>
+      <a href="{{ url_for('perfil') }}" class="qa-card">
+        <div class="qa-icon" style="background:#fff0e6;">👤</div>
+        <div class="qa-label">Mi<br>perfil</div>
+      </a>
+      {% if usuario.rol == 'admin' %}
+      <a href="{{ url_for('admin_reservas') }}" class="qa-card">
+        <div class="qa-icon" style="background:#fdecea;">🛡️</div>
+        <div class="qa-label">Gestión<br>reservas</div>
+      </a>
+      <a href="{{ url_for('admin_usuarios') }}" class="qa-card">
+        <div class="qa-icon" style="background:#e8edf6;">👥</div>
+        <div class="qa-label">Gestión<br>usuarios</div>
+      </a>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Info del perfil -->
+  <div class="card">
+    <div class="sec-head">
+      <div class="sec-title"><span class="sec-dot"></span> Tu información</div>
+      <a href="{{ url_for('editar_perfil') }}" class="btn btn-secondary btn-sm">✏️ Editar</a>
+    </div>
+    <div class="info-row">
+      <span class="info-key">Nombre</span>
+      <span style="font-weight:700; color:var(--navy);">{{ usuario.nombre }}</span>
+    </div>
+    <div class="info-row">
+      <span class="info-key">Correo</span>
+      <span style="color:var(--muted); font-size:.85rem;">{{ usuario.correo }}</span>
+    </div>
+    <div class="info-row">
+      <span class="info-key">Rol</span>
+      <span class="pill pill-{{ usuario.rol }}">{{ usuario.rol }}</span>
+    </div>
+    {% if usuario.rol == 'docente' %}
+    <div class="info-row">
+      <span class="info-key">Código</span>
+      <span>{{ usuario.cod_docente or '—' }}</span>
+    </div>
+    <div class="info-row">
+      <span class="info-key">Departamento</span>
+      <span>{{ usuario.departamento or '—' }}</span>
+    </div>
+    {% elif usuario.rol == 'administrativo' %}
+    <div class="info-row">
+      <span class="info-key">Dependencia</span>
+      <span>{{ usuario.dependencia or '—' }}</span>
+    </div>
+    {% elif usuario.rol == 'externa' %}
+    <div class="info-row">
+      <span class="info-key">Empresa</span>
+      <span>{{ usuario.empresa or '—' }}</span>
+    </div>
+    <div class="info-row">
+      <span class="info-key">Teléfono</span>
+      <span>{{ usuario.telefono or '—' }}</span>
+    </div>
+    {% endif %}
+  </div>
+
+</div>
+
+<!-- ═══════════════════════ ACTIVIDAD RECIENTE ════════════ -->
+<div class="card anim-4" style="margin-bottom:1.75rem;">
+  <div class="sec-head">
+    <div class="sec-title"><span class="sec-dot"></span> Actividad reciente</div>
+    <a href="{{ url_for('mis_reservas') }}" class="btn btn-secondary btn-sm">Ver todo →</a>
+  </div>
+  {% if mis_reservas_rec %}
+  <table>
+    <thead>
+      <tr>
+        <th>#</th>
+        <th>Evento</th>
+        <th>Espacio</th>
+        <th>Fecha</th>
+        <th>Horario</th>
+        <th>Estado</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for r in mis_reservas_rec %}
+      <tr>
+        <td style="color:var(--muted); font-size:.8rem;">#{{ r.id }}</td>
+        <td><strong>{{ r.tipo_evento }}</strong><br><span style="font-size:.78rem; color:var(--muted);">{{ r.finalidad }}</span></td>
+        <td>{{ r.espacios[0].nombre if r.espacios else '—' }}</td>
+        <td style="font-size:.85rem; white-space:nowrap;">{{ r.fecha.strftime('%d/%m/%Y') }}</td>
+        <td style="font-size:.83rem; white-space:nowrap;">{{ r.hora_inicio.strftime('%H:%M') }} – {{ r.hora_fin.strftime('%H:%M') }}</td>
+        <td>
+          {% if r.estado == 'pendiente' %}
+            <span class="pill p-pendiente">⏳ En revisión</span>
+          {% elif r.estado == 'aprobada' %}
+            <span class="pill p-aprobada">✅ Aprobada</span>
+          {% elif r.estado == 'rechazada' %}
+            <span class="pill p-rechazada">❌ Rechazada</span>
+          {% elif r.estado == 'cancelada' %}
+            <span class="pill p-cancelada">🚫 Cancelada</span>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div class="activity-empty">
+    <div class="activity-empty-icon">📭</div>
+    <p>Aún no tienes reservas.<br>
+      <a href="{{ url_for('reserva_nueva') }}" style="font-weight:700;">Solicita tu primera reserva →</a>
+    </p>
+  </div>
+  {% endif %}
+</div>
+
+<!-- ═══════════════════════ ESPACIOS DISPONIBLES ══════════ -->
+<div class="anim-5">
+  <div class="sec-head" style="margin-bottom:1rem;">
+    <div class="sec-title"><span class="sec-dot"></span> Espacios del auditorio</div>
+    <a href="{{ url_for('reserva_nueva') }}" class="btn btn-primary btn-sm">＋ Reservar</a>
+  </div>
+  <div class="espacio-grid">
+    {% set colores = ['var(--cyan)', '#0096b4', '#4361ee', '#7b2d8b', '#e06c00'] %}
+    {% for esp in espacios %}
+    <div class="espacio-card" style="border-top-color:{{ colores[loop.index0 % 5] }};">
+      <div class="espacio-name">{{ esp.nombre }}</div>
+      <div class="espacio-cap">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+        Capacidad: <strong>{{ esp.capacidad }} personas</strong>
+      </div>
+      {% if esp.costo_externo %}
+      <div style="font-size:.74rem; color:var(--muted); margin-top:.4rem;">
+        💳 Externos: ${{ "{:,.0f}".format(esp.costo_externo) }} COP
+      </div>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+</div>
+
+{% endblock %}

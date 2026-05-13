@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Recuperar contraseña — Politécnico Grancolombiano</title>
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&family=Nunito+Sans:wght@400;600&display=swap" rel="stylesheet">
+  <style>
+    :root { --navy:#0d2340; --cyan:#00b4d8; --cyan-dark:#0096b4; --cyan-light:#e0f7fc; --white:#ffffff; --gray-bg:#f4f6f9; --border:#dce3ec; --text:#1a2b42; --muted:#6b7c93; --danger:#dc3545; --success:#28a745; --radius:8px; }
+    *, *::before, *::after { box-sizing:border-box; margin:0; padding:0; }
+    body { font-family:'Nunito Sans',sans-serif; background:var(--cyan-light); color:var(--text); min-height:100vh; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:2rem 1rem; }
+    .box { width:100%; max-width:420px; }
+    .box-header { background:var(--navy); border-radius:8px 8px 0 0; padding:1.5rem 2rem; text-align:center; }
+    .box-header h1 { font-family:'Nunito',sans-serif; font-size:1.2rem; font-weight:800; color:var(--white); }
+    .box-header p  { font-size:.82rem; color:rgba(255,255,255,.5); margin-top:.3rem; }
+    .box-body { background:var(--white); border:1px solid var(--border); border-top:none; border-radius:0 0 8px 8px; padding:2rem; }
+    .form-group { margin-bottom:1rem; }
+    label { display:block; font-size:.78rem; color:var(--muted); font-weight:700; text-transform:uppercase; letter-spacing:.04em; margin-bottom:.4rem; }
+    input { width:100%; background:var(--cyan-light); border:1.5px solid var(--border); color:var(--text); padding:.7rem .9rem; border-radius:var(--radius); font-family:inherit; font-size:.9rem; }
+    input:focus { outline:none; border-color:var(--cyan); box-shadow:0 0 0 3px rgba(0,180,216,.15); background:white; }
+    .btn { width:100%; padding:.78rem; background:var(--cyan); color:var(--navy); border:none; border-radius:var(--radius); font-family:'Nunito',sans-serif; font-size:.95rem; font-weight:800; cursor:pointer; transition:background .2s; }
+    .btn:hover { background:var(--cyan-dark); color:white; }
+    .alerts { margin-bottom:1rem; }
+    .alert { padding:.65rem .9rem; border-radius:var(--radius); font-size:.85rem; border-left:4px solid; margin-bottom:.5rem; }
+    .alert-danger  { background:#fdecea; border-color:var(--danger); color:#8b1a1a; }
+    .alert-success { background:#eaf7ee; border-color:var(--success); color:#1a6630; }
+    .alert-info    { background:var(--cyan-light); border-color:var(--cyan); color:#005f73; }
+    .footer-link { text-align:center; margin-top:1.25rem; font-size:.85rem; color:var(--muted); }
+    .footer-link a { color:var(--cyan-dark); font-weight:700; }
+  </style>
+</head>
+<body>
+<div class="box">
+  <div class="box-header">
+    <h1>🔐 Recuperar contraseña</h1>
+    <p>Ingresa tu correo y te enviaremos un enlace</p>
+  </div>
+  <div class="box-body">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        <div class="alerts">
+          {% for cat, msg in messages %}
+            <div class="alert alert-{{ cat }}">{{ msg }}</div>
+          {% endfor %}
+        </div>
+      {% endif %}
+    {% endwith %}
+    <form method="POST">
+      <div class="form-group">
+        <label>Correo electrónico</label>
+        <input type="email" name="correo" required placeholder="Tu correo registrado" autofocus/>
+      </div>
+      <button type="submit" class="btn">Enviar enlace de recuperación</button>
+    </form>
+    <p class="footer-link"><a href="{{ url_for('login') }}">← Volver al inicio de sesión</a></p>
+  </div>
+</div>
+</body>
+</html>

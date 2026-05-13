@@ -1,0 +1,466 @@
+{% extends "base.html" %}
+{% block title %}Nueva Reserva{% endblock %}
+{% block head %}
+<style>
+/* ── Time Picker ─────────────────────────────────────────── */
+.tp-wrap {
+  background:#f8fafd; border:1.5px solid var(--border);
+  border-radius:10px; padding:1rem 1.1rem;
+}
+.tp-phase {
+  font-size:.8rem; font-weight:700; color:var(--muted);
+  text-transform:uppercase; letter-spacing:.05em; margin-bottom:.7rem;
+}
+.tp-phase strong { color:var(--cyan-dark); }
+.tp-grid {
+  display:grid;
+  grid-template-columns:repeat(7, 1fr);
+  gap:5px;
+}
+.tp-chip {
+  padding:.38rem .2rem; border-radius:7px; border:1.5px solid #d6e1ed;
+  background:#fff; color:var(--navy); font-size:.76rem; font-weight:700;
+  cursor:pointer; text-align:center; transition:all .15s; user-select:none;
+  font-family:'Nunito Sans', sans-serif;
+}
+.tp-chip:hover:not(:disabled) {
+  border-color:var(--cyan); background:var(--cyan-light); color:var(--cyan-dark);
+}
+.tp-chip.chip-inicio {
+  background:var(--cyan); border-color:var(--cyan-dark); color:#fff;
+}
+.tp-chip.chip-fin {
+  background:#0d2340; border-color:#0d2340; color:#fff;
+}
+.tp-chip.chip-rango {
+  background:#e0f7fc; border-color:#9de8f7; color:#005f73;
+}
+.tp-chip.chip-ocupado {
+  background:#fdecea; border-color:#fca5a5; color:#b91c1c;
+  cursor:not-allowed; opacity:.8;
+}
+.tp-chip.chip-bloqueado {
+  background:#f1f3f6; border-color:#dce3ec; color:#b0bcc8;
+  cursor:not-allowed;
+}
+.tp-summary {
+  margin-top:.8rem; padding:.55rem .9rem; border-radius:8px;
+  background:#eaf7ee; border:1px solid #86efac; color:#1a6630;
+  font-size:.85rem; font-weight:600; display:none;
+}
+.tp-reset {
+  margin-top:.6rem; font-size:.78rem; color:var(--muted);
+  background:none; border:none; cursor:pointer; padding:0;
+  text-decoration:underline; font-family:inherit;
+}
+.tp-legend {
+  display:flex; gap:1rem; flex-wrap:wrap; margin-top:.8rem;
+  font-size:.74rem; color:var(--muted); align-items:center;
+}
+.tp-legend-dot {
+  width:12px; height:12px; border-radius:3px; display:inline-block; margin-right:3px;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>Solicitar reserva</h1>
+  <p>Completa el formulario para registrar tu solicitud</p>
+</div>
+
+<!-- Días disponibles -->
+<div class="card" style="margin-bottom:1.25rem; border-left:4px solid var(--cyan); background:#eaf8fc;">
+  <div class="card-title">📅 Días y horarios disponibles</div>
+  <div style="display:grid; grid-template-columns:repeat(7,1fr); gap:.4rem; font-size:.82rem; text-align:center;">
+    {% for dia in [
+      ("Lunes",    "danger",  "No disponible",          "—"),
+      ("Martes",   "navy",    "12:00 – 21:00", "✓"),
+      ("Miércoles","danger",  "No disponible",           "—"),
+      ("Jueves",   "navy",    "12:00 – 21:00", "✓"),
+      ("Viernes",  "success", "08:00 – 21:00",  "✓"),
+      ("Sábado",   "danger",  "No disponible",           "—"),
+      ("Domingo",  "danger",  "No disponible",           "—")
+    ] %}
+    <div style="padding:.5rem .4rem; background:white; border-radius:6px; border:1.5px solid {% if dia[1]=='danger' %}#fca5a5{% elif dia[1]=='success' %}#86efac{% else %}var(--cyan){% endif %};">
+      <div style="font-weight:700; color:{% if dia[1]=='danger' %}var(--danger){% elif dia[1]=='success' %}var(--success){% else %}var(--navy){% endif %};">{{ dia[0] }}</div>
+      <div style="font-size:.72rem; color:var(--muted); margin-top:.2rem; line-height:1.3;">{{ dia[2] }}</div>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+
+{% if usuario.rol == 'externa' %}
+<div class="card" style="margin-bottom:1.25rem; border-left:4px solid var(--warning); background:#fff8e1;">
+  <div class="card-title" style="color:#7a5c00;">💰 Costos para Personas Externas</div>
+  <div style="font-size:.88rem; color:#7a5c00; line-height:1.8;">
+    <strong>Salas B1, B2, B3 y Música y Baile</strong>: <strong>$100.000 COP</strong><br>
+    <strong>Auditorio Completo</strong>: <strong>$150.000 COP</strong>
+  </div>
+</div>
+{% endif %}
+
+<div class="card">
+  <form method="POST" id="formReserva">
+
+    <!-- Espacio y personas -->
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:.75rem;">
+      <div class="form-group">
+        <label>Espacio del auditorio</label>
+        <select name="espacio_id" id="espacioSel" required>
+          <option value="">Selecciona un espacio...</option>
+          {% for e in espacios %}
+          <option value="{{ e.id }}" data-cap="{{ e.capacidad }}">
+            {{ e.nombre }} (máx. {{ e.capacidad }} personas)
+            {% if usuario.rol == 'externa' and e.costo_externo %}
+              — ${{ "{:,.0f}".format(e.costo_externo) }} COP
+            {% endif %}
+          </option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Cantidad de personas</label>
+        <input type="number" name="cant_personas" id="cantPersonas" min="1" required placeholder="Ej: 30"/>
+        <div id="capAviso" style="font-size:.78rem; color:var(--danger); margin-top:.3rem; display:none;"></div>
+      </div>
+    </div>
+
+    <!-- Tipo y finalidad -->
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:.75rem;">
+      <div class="form-group">
+        <label>Tipo de evento</label>
+        <input type="text" name="tipo_evento" required placeholder="Ej: Conferencia, Clase, Taller..."/>
+      </div>
+      <div class="form-group">
+        <label>Finalidad</label>
+        <input type="text" name="finalidad" required placeholder="Ej: Presentación de proyecto final"/>
+      </div>
+    </div>
+
+    <!-- Fecha -->
+    <div class="form-group">
+      <label>Fecha del evento</label>
+      <input type="date" name="fecha" id="fechaInput" required/>
+      <div id="diaAviso" style="margin-top:.4rem; font-size:.82rem; display:none; padding:.4rem .7rem; border-radius:6px;"></div>
+    </div>
+
+    <!-- ── Time Picker visual ─────────────────────────────── -->
+    <div class="form-group">
+      <label>Horario (inicio y fin)</label>
+
+      <div class="tp-wrap" id="tpWrap">
+        <div class="tp-phase" id="tpPhase">Primero selecciona un <strong>espacio</strong> y una <strong>fecha válida</strong></div>
+        <div class="tp-grid" id="tpGrid"></div>
+        <div class="tp-summary" id="tpSummary"></div>
+        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap;">
+          <div class="tp-legend">
+            <span><span class="tp-legend-dot" style="background:var(--cyan);"></span>Inicio</span>
+            <span><span class="tp-legend-dot" style="background:#0d2340;"></span>Fin</span>
+            <span><span class="tp-legend-dot" style="background:#e0f7fc; border:1px solid #9de8f7;"></span>Rango</span>
+            <span><span class="tp-legend-dot" style="background:#fdecea; border:1px solid #fca5a5;"></span>Ocupado</span>
+            <span><span class="tp-legend-dot" style="background:#f1f3f6;"></span>No disponible</span>
+          </div>
+          <button type="button" class="tp-reset" id="tpReset" style="display:none;" onclick="resetTp()">↩ Limpiar selección</button>
+        </div>
+      </div>
+      <!-- Campos ocultos que envía el form -->
+      <input type="hidden" name="hora_inicio" id="hiddenInicio" required/>
+      <input type="hidden" name="hora_fin"    id="hiddenFin"    required/>
+    </div>
+
+    <!-- Indumentaria -->
+    <div class="form-group">
+      <label>Indumentaria requerida <span style="color:var(--muted); text-transform:none; font-size:.75rem;">(opcional)</span></label>
+      <input type="text" name="indumentaria" placeholder="Ej: Formal, Casual, Uniforme..."/>
+    </div>
+
+    <!-- Servicios adicionales -->
+    <div class="form-group">
+      <label>Servicios adicionales requeridos</label>
+      <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(180px,1fr)); gap:.5rem; margin-top:.4rem;">
+        {% for servicio in [
+          ("sonido",    "🔊 Sistema de sonido"),
+          ("video",     "📽 Video beam / proyector"),
+          ("microfono", "🎤 Micrófono"),
+          ("sillas",    "🪑 Sillas adicionales"),
+          ("mesas",     "🪵 Mesas adicionales"),
+          ("aire",      "❄️ Aire acondicionado"),
+          ("grabacion", "🎥 Grabación del evento"),
+          ("streaming", "📡 Streaming en vivo"),
+          ("limpieza",  "🧹 Limpieza post-evento")
+        ] %}
+        <label style="display:flex; align-items:center; gap:.5rem; font-size:.85rem; text-transform:none; letter-spacing:0; color:var(--text); cursor:pointer; background:white; border:1.5px solid var(--border); border-radius:6px; padding:.5rem .75rem;">
+          <input type="checkbox" name="servicios_adicionales" value="{{ servicio[0] }}" style="width:auto; margin:0;"/>
+          {{ servicio[1] }}
+        </label>
+        {% endfor %}
+      </div>
+    </div>
+
+    <hr>
+    <div style="display:flex; gap:.75rem;">
+      <button type="submit" class="btn btn-primary" id="btnEnviar">📋 Enviar solicitud</button>
+      <a href="{{ url_for('mis_reservas') }}" class="btn btn-secondary">Cancelar</a>
+    </div>
+  </form>
+</div>
+
+<script>
+// ── Constantes ────────────────────────────────────────────
+// JS weekday: 0=Dom 1=Lun 2=Mar 3=Mié 4=Jue 5=Vie 6=Sáb
+const RESTRICCIONES = {
+  0: null,
+  1: null,
+  2: { min:"12:00", max:"21:00", label:"Martes: 12:00 – 21:00" },
+  3: null,
+  4: { min:"12:00", max:"21:00", label:"Jueves: 12:00 – 21:00" },
+  5: { min:"08:00", max:"21:00", label:"Viernes: 08:00 – 21:00" },
+  6: null,
+};
+const NOMBRES_DIAS = ["Domingo","Lunes","Martes","Miércoles","Jueves","Viernes","Sábado"];
+
+// Generar slots de 30 min entre 08:00 y 21:00
+const SLOTS = [];
+for (let h = 8; h <= 21; h++) {
+  for (let m of [0, 30]) {
+    if (h === 21 && m === 30) break;
+    SLOTS.push(`${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`);
+  }
+}
+// SLOTS[0]="08:00" ... SLOTS[26]="21:00"
+
+// ── Estado del picker ──────────────────────────────────────
+let inicioIdx  = null;
+let finIdx     = null;
+let ocupados   = [];   // [{inicio:"09:00", fin:"11:00"}, ...]
+let minSlot    = "08:00";
+let maxSlot    = "21:00";
+let pickerActivo = false;
+
+// ── Helpers ───────────────────────────────────────────────
+function slotEnRangoOcupado(idx) {
+  const s = SLOTS[idx];
+  return ocupados.some(o => s >= o.inicio && s < o.fin);
+}
+function slotBloqueado(idx) {
+  return SLOTS[idx] < minSlot || SLOTS[idx] > maxSlot;
+}
+function slotDisponible(idx) {
+  return !slotBloqueado(idx) && !slotEnRangoOcupado(idx);
+}
+function hayOcupadoEntre(a, b) {
+  for (let i = a + 1; i < b; i++) {
+    if (slotEnRangoOcupado(i) || slotBloqueado(i)) return true;
+  }
+  return false;
+}
+
+// ── Renderizar chips ──────────────────────────────────────
+function renderChips() {
+  const grid = document.getElementById("tpGrid");
+  grid.innerHTML = "";
+  SLOTS.forEach((slot, i) => {
+    const chip = document.createElement("button");
+    chip.type = "button";
+    chip.textContent = slot;
+    chip.dataset.idx = i;
+
+    const bloq = slotBloqueado(i);
+    const ocup = slotEnRangoOcupado(i);
+    let cls = "tp-chip";
+
+    if (!pickerActivo || bloq) {
+      cls += " chip-bloqueado";
+      chip.disabled = true;
+    } else if (ocup) {
+      cls += " chip-ocupado";
+      chip.disabled = true;
+    } else if (inicioIdx !== null && finIdx !== null) {
+      if (i === inicioIdx) cls += " chip-inicio";
+      else if (i === finIdx) cls += " chip-fin";
+      else if (i > inicioIdx && i < finIdx) cls += " chip-rango";
+    } else if (inicioIdx !== null && i === inicioIdx) {
+      cls += " chip-inicio";
+    }
+
+    chip.className = cls;
+    if (!bloq && !ocup && pickerActivo) {
+      chip.addEventListener("click", () => handleClick(i));
+    }
+    grid.appendChild(chip);
+  });
+
+  // Resumen
+  const sum = document.getElementById("tpSummary");
+  const rst = document.getElementById("tpReset");
+  const phase = document.getElementById("tpPhase");
+
+  if (inicioIdx !== null && finIdx !== null) {
+    sum.style.display = "block";
+    sum.textContent = `✅ Horario seleccionado: ${SLOTS[inicioIdx]} → ${SLOTS[finIdx]}`;
+    rst.style.display = "inline";
+    phase.innerHTML = `Horario elegido: <strong>${SLOTS[inicioIdx]} → ${SLOTS[finIdx]}</strong>`;
+  } else if (inicioIdx !== null) {
+    sum.style.display = "none";
+    rst.style.display = "inline";
+    phase.innerHTML = `Inicio: <strong>${SLOTS[inicioIdx]}</strong> — ahora selecciona la hora de <strong>fin</strong>`;
+  } else {
+    sum.style.display = "none";
+    rst.style.display = "none";
+    phase.innerHTML = `Haz clic en una franja para elegir la hora de <strong>inicio</strong>`;
+  }
+}
+
+// ── Click en chip ─────────────────────────────────────────
+function handleClick(i) {
+  if (inicioIdx === null) {
+    inicioIdx = i;
+  } else if (finIdx === null) {
+    if (i <= inicioIdx) {
+      inicioIdx = i;
+    } else if (hayOcupadoEntre(inicioIdx, i)) {
+      alert("Hay franjas ocupadas dentro del rango seleccionado. Elige otro horario.");
+      inicioIdx = i; finIdx = null;
+    } else {
+      finIdx = i;
+      document.getElementById("hiddenInicio").value = SLOTS[inicioIdx];
+      document.getElementById("hiddenFin").value    = SLOTS[finIdx];
+    }
+  } else {
+    inicioIdx = i; finIdx = null;
+    document.getElementById("hiddenInicio").value = "";
+    document.getElementById("hiddenFin").value    = "";
+  }
+  renderChips();
+}
+
+function resetTp() {
+  inicioIdx = null; finIdx = null;
+  document.getElementById("hiddenInicio").value = "";
+  document.getElementById("hiddenFin").value    = "";
+  renderChips();
+}
+
+// ── Cargar disponibilidad desde API ──────────────────
+async function cargarDisponibilidad() {
+  const espId = document.getElementById("espacioSel").value;
+  const fecha = document.getElementById("fechaInput").value;
+  if (!espId || !fecha) return;   // Necesita espacio + fecha para consultar
+
+  ocupados = [];
+  renderChips(); // Mostrar chips sin ocupados mientras carga
+
+  try {
+    const resp = await fetch(`/api/disponibilidad?espacio_id=${espId}&fecha=${fecha}`);
+    const data = await resp.json();
+    ocupados = data.ocupados || [];
+  } catch(e) { ocupados = []; }
+
+  renderChips(); // Re-renderizar con slots ocupados
+}
+
+// ── Fecha change ──────────────────────────────────────────
+function getDia(val) {
+  if (!val) return null;
+  const [y,m,d] = val.split("-").map(Number);
+  return new Date(y, m-1, d).getDay();
+}
+
+const fechaInput = document.getElementById("fechaInput");
+const diaAviso   = document.getElementById("diaAviso");
+const espacioSel = document.getElementById("espacioSel");
+
+// Min fecha = hoy
+const hoy = new Date();
+fechaInput.min = `${hoy.getFullYear()}-${String(hoy.getMonth()+1).padStart(2,'0')}-${String(hoy.getDate()).padStart(2,'0')}`;
+
+function actualizarFecha() {
+  const val  = fechaInput.value;
+  const dia  = getDia(val);
+  const rest = (dia !== null) ? RESTRICCIONES[dia] : null;
+
+  // Siempre resetear selección al cambiar fecha
+  inicioIdx = null; finIdx = null;
+  document.getElementById("hiddenInicio").value = "";
+  document.getElementById("hiddenFin").value    = "";
+  ocupados = [];
+
+  if (!val) {
+    diaAviso.style.display = "none";
+    pickerActivo = false;
+    renderChips();
+    return;
+  }
+
+  if (!rest) {
+    // Día no disponible
+    diaAviso.style.cssText = "display:block;margin-top:.4rem;font-size:.82rem;padding:.4rem .7rem;border-radius:6px;background:#fdecea;color:#8b1a1a;border:1px solid #dc3545;";
+    diaAviso.innerHTML = `❌ <strong>${NOMBRES_DIAS[dia]}</strong> no está disponible. Elige martes, jueves o viernes.`;
+    pickerActivo = false;
+    document.getElementById("tpPhase").textContent = "El día seleccionado no está disponible para reservas";
+    renderChips();
+  } else {
+    // Día válido — activar picker INMEDIATAMENTE con restricciones del día
+    diaAviso.style.cssText = "display:block;margin-top:.4rem;font-size:.82rem;padding:.4rem .7rem;border-radius:6px;background:#eaf7ee;color:#1a6630;border:1px solid #28a745;";
+    diaAviso.innerHTML = `✅ <strong>${NOMBRES_DIAS[dia]}</strong> disponible — ${rest.label}`;
+    minSlot = rest.min;
+    maxSlot = rest.max;
+    pickerActivo = true;   // ⬅️ Clave: activar sin esperar espacio
+    renderChips();
+    if (espacioSel.value) {
+      cargarDisponibilidad();  // Cargar ocupados si ya hay espacio elegido
+    } else {
+      document.getElementById("tpPhase").innerHTML =
+        `Día válido — ahora <strong>selecciona un espacio</strong> para ver disponibilidad exacta`;
+    }
+  }
+}
+
+fechaInput.addEventListener("change", actualizarFecha);
+espacioSel.addEventListener("change", function() {
+  // Al cambiar espacio, si fecha ya está seleccionada cargar disponibilidad
+  if (fechaInput.value) cargarDisponibilidad();
+});
+
+// ── Validar capacidad ─────────────────────────────────────
+espacioSel.addEventListener("change", function() {
+  const opt = this.options[this.selectedIndex];
+  const cap = parseInt(opt.dataset.cap || "0");
+  if (cap) {
+    document.getElementById("cantPersonas").max = cap;
+    document.getElementById("capAviso").style.display = "none";
+  }
+});
+document.getElementById("cantPersonas").addEventListener("input", function() {
+  const opt = espacioSel.options[espacioSel.selectedIndex];
+  const cap = parseInt(opt.dataset.cap || "0");
+  const av  = document.getElementById("capAviso");
+  if (cap && parseInt(this.value) > cap) {
+    av.style.display = "block";
+    av.textContent = `⚠️ El espacio tiene capacidad máxima de ${cap} personas.`;
+  } else {
+    av.style.display = "none";
+  }
+});
+
+// ── Validar al enviar ─────────────────────────────────────
+document.getElementById("formReserva").addEventListener("submit", function(e) {
+  const val = fechaInput.value;
+  const dia = getDia(val);
+  if (!val || !RESTRICCIONES[dia]) {
+    e.preventDefault();
+    alert("El día seleccionado no está disponible. Elige martes, jueves o viernes.");
+    return;
+  }
+  if (!document.getElementById("hiddenInicio").value || !document.getElementById("hiddenFin").value) {
+    e.preventDefault();
+    alert("Por favor selecciona el horario de inicio y fin en la grilla de franjas horarias.");
+    return;
+  }
+});
+
+// Init
+renderChips();
+</script>
+{% endblock %}

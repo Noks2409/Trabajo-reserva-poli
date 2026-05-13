@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block title %}Rechazar Reserva{% endblock %}
+{% block content %}
+<div class="page-header">
+  <h1>Rechazar reserva</h1>
+  <p>Revisa los detalles e ingresa la justificación del rechazo</p>
+</div>
+
+<div style="max-width:600px;">
+
+  <!-- Paso 3 del diagrama: El sistema muestra los detalles -->
+  <div class="card" style="margin-bottom:1.25rem; border-left:4px solid var(--danger);">
+    <div class="card-title">📋 Detalles de la reserva</div>
+    <table>
+      <tr><td style="color:var(--muted); width:40%;">Solicitante</td><td><strong>{{ reserva.usuario.nombre }}</strong></td></tr>
+      <tr><td style="color:var(--muted);">Correo</td><td>{{ reserva.usuario.correo }}</td></tr>
+      <tr><td style="color:var(--muted);">Evento</td><td>{{ reserva.tipo_evento }}</td></tr>
+      <tr><td style="color:var(--muted);">Finalidad</td><td>{{ reserva.finalidad }}</td></tr>
+      <tr><td style="color:var(--muted);">Espacio</td><td>{% for e in reserva.espacios %}{{ e.nombre }}{% endfor %}</td></tr>
+      <tr><td style="color:var(--muted);">Fecha</td><td>{{ reserva.fecha.strftime('%d/%m/%Y') }}</td></tr>
+      <tr><td style="color:var(--muted);">Horario</td><td>{{ reserva.hora_inicio.strftime('%H:%M') }} – {{ reserva.hora_fin.strftime('%H:%M') }}</td></tr>
+      <tr><td style="color:var(--muted);">Personas</td><td>{{ reserva.cant_personas }}</td></tr>
+    </table>
+  </div>
+
+  <!-- Paso 4 del diagrama: El administrador ingresa la justificación -->
+  <div class="card">
+    <div class="card-title" style="color:var(--danger);">❌ Justificación del rechazo</div>
+    <form method="POST">
+      <div class="form-group">
+        <label>Motivo del rechazo <span style="color:var(--danger);">*</span></label>
+        <textarea name="justificacion" required rows="4"
+          placeholder="Explica por qué se rechaza esta reserva..."
+          style="width:100%; background:var(--white); border:1.5px solid var(--border); color:var(--text);
+                 padding:.7rem .9rem; border-radius:8px; font-family:inherit; font-size:.9rem;
+                 resize:vertical; transition:border-color .2s;"
+          onfocus="this.style.borderColor='var(--danger)'"
+          onblur="this.style.borderColor='var(--border)'"></textarea>
+        <p style="font-size:.78rem; color:var(--muted); margin-top:.3rem;">
+          Este motivo quedará registrado en el sistema y será visible para el usuario.
+        </p>
+      </div>
+
+      <!-- Paso 5 del diagrama: El administrador confirma la acción -->
+      <div style="display:flex; gap:.75rem;">
+        <button type="submit" class="btn btn-danger">❌ Confirmar rechazo</button>
+        <a href="{{ url_for('admin_reservas') }}" class="btn btn-secondary">Cancelar</a>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
