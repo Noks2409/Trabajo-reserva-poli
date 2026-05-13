@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+{% block title %}Historial de reservas{% endblock %}
+{% block content %}
+<div class="page-header">
+  <h1>Historial completo de reservas</h1>
+  <p>Consulta, actualiza y elimina reservas del sistema</p>
+</div>
+
+<!-- Filtros -->
+<div class="card" style="margin-bottom:1.25rem;">
+  <form method="GET" style="display:flex; gap:.75rem; flex-wrap:wrap; align-items:flex-end;">
+    <div>
+      <label style="display:block; font-size:.78rem; color:var(--muted); font-weight:700; text-transform:uppercase; margin-bottom:.4rem;">Buscar</label>
+      <input type="text" name="buscar" value="{{ buscar }}" placeholder="Usuario o tipo de evento..."
+        style="background:var(--white); border:1.5px solid var(--border); color:var(--text); padding:.6rem .9rem; border-radius:8px; font-family:inherit; font-size:.875rem; min-width:220px;"/>
+    </div>
+    <div>
+      <label style="display:block; font-size:.78rem; color:var(--muted); font-weight:700; text-transform:uppercase; margin-bottom:.4rem;">Estado</label>
+      <select name="estado" style="background:var(--white); border:1.5px solid var(--border); color:var(--text); padding:.6rem .9rem; border-radius:8px; font-family:inherit; font-size:.875rem;">
+        <option value="" {% if not estado %}selected{% endif %}>Todos</option>
+        <option value="pendiente"  {% if estado=='pendiente'  %}selected{% endif %}>En revisión</option>
+        <option value="aprobada"   {% if estado=='aprobada'   %}selected{% endif %}>Confirmada</option>
+        <option value="rechazada"  {% if estado=='rechazada'  %}selected{% endif %}>Rechazada</option>
+        <option value="cancelada"  {% if estado=='cancelada'  %}selected{% endif %}>Cancelada</option>
+      </select>
+    </div>
+    <button type="submit" class="btn btn-primary">Buscar</button>
+    {% if estado or buscar %}<a href="{{ url_for('admin_historial') }}" class="btn btn-secondary">Limpiar</a>{% endif %}
+    <a href="{{ url_for('admin_crear_reserva') }}" class="btn btn-navy" style="margin-left:auto;">➕ Nueva reserva</a>
+  </form>
+</div>
+
+<div class="card">
+  <div class="card-title">
+    📋 Reservas
+    <span style="font-size:.8rem; font-weight:400; color:var(--muted); margin-left:.5rem;">{{ reservas|length }} resultado{{ 's' if reservas|length != 1 else '' }}</span>
+  </div>
+  {% if reservas %}
+  <table>
+    <thead>
+      <tr>
+        <th>ID</th><th>Usuario</th><th>Evento</th><th>Espacio</th>
+        <th>Fecha</th><th>Horario</th><th>Estado</th><th>Acciones</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for r in reservas %}
+      <tr>
+        <td style="color:var(--muted); font-size:.8rem;">#{{ r.id }}</td>
+        <td>
+          <strong>{{ r.usuario.nombre }}</strong><br>
+          <span style="font-size:.75rem; color:var(--muted);">{{ r.usuario.rol }}</span>
+        </td>
+        <td>{{ r.tipo_evento }}</td>
+        <td>{% for e in r.espacios %}{{ e.nombre }}{% endfor %}</td>
+        <td>{{ r.fecha.strftime('%d/%m/%Y') }}</td>
+        <td style="font-size:.85rem;">{{ r.hora_inicio.strftime('%H:%M') }}–{{ r.hora_fin.strftime('%H:%M') }}</td>
+        <td>
+          {% if r.estado == 'pendiente' %}
+            <span class="pill" style="background:#fff8e1; color:#7a5c00;">⏳ En revisión</span>
+          {% elif r.estado == 'aprobada' %}
+            <span class="pill" style="background:#eaf7ee; color:#1a6630;">✅ Confirmada</span>
+          {% elif r.estado == 'rechazada' %}
+            <span class="pill" style="background:#fdecea; color:#8b1a1a;">❌ Rechazada</span>
+          {% else %}
+            <span class="pill" style="background:#f4f6f9; color:var(--muted);">🚫 Cancelada</span>
+          {% endif %}
+        </td>
+        <td>
+          <div style="display:flex; gap:.3rem; flex-wrap:wrap;">
+            <a href="{{ url_for('admin_modificar_reserva', rid=r.id) }}" class="btn btn-secondary btn-sm">✏️ Editar</a>
+            <form method="POST" action="{{ url_for('admin_eliminar_reserva', rid=r.id) }}"
+                  onsubmit="return confirm('¿Eliminar esta reserva permanentemente? Esta acción no se puede deshacer.')">
+              <button type="submit" class="btn btn-danger btn-sm">🗑 Eliminar</button>
+            </form>
+          </div>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p style="text-align:center; color:var(--muted); padding:2rem 0;">No hay reservas con ese criterio.</p>
+  {% endif %}
+</div>
+{% endblock %}

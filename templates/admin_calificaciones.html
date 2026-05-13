@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+{% block title %}Calificaciones{% endblock %}
+{% block content %}
+<div class="page-header">
+  <h1>Calificaciones del sistema</h1>
+  <p>Consulta las calificaciones de los usuarios y registra la evaluación del admin</p>
+</div>
+
+{% if calificaciones %}
+<div style="display:flex; flex-direction:column; gap:1.25rem;">
+  {% for cal in calificaciones %}
+  <div class="card">
+    <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:1rem;">
+
+      <!-- Info reserva y usuario -->
+      <div>
+        <div style="font-weight:700; font-size:1rem; font-family:'Nunito',sans-serif; color:var(--navy);">
+          {{ cal.reserva.usuario.nombre }}
+          <span style="font-size:.78rem; font-weight:400; color:var(--muted); margin-left:.5rem;">({{ cal.reserva.usuario.rol }})</span>
+        </div>
+        <div style="font-size:.85rem; color:var(--muted); margin-top:.2rem;">
+          {{ cal.reserva.tipo_evento }} &nbsp;·&nbsp;
+          {% for e in cal.reserva.espacios %}{{ e.nombre }}{% endfor %} &nbsp;·&nbsp;
+          {{ cal.reserva.fecha.strftime('%d/%m/%Y') }}
+        </div>
+      </div>
+
+      <!-- Puntuación -->
+      <div style="text-align:right;">
+        <div style="font-size:1.4rem; color:#f5a623;">
+          {% for i in range(cal.puntuacion) %}★{% endfor %}{% for i in range(5 - cal.puntuacion) %}<span style="color:#ddd;">★</span>{% endfor %}
+        </div>
+        <div style="font-size:.75rem; color:var(--muted);">{{ cal.fecha.strftime('%d/%m/%Y') }}</div>
+      </div>
+    </div>
+
+    {% if cal.comentario %}
+    <div style="background:var(--gray-bg); border-radius:6px; padding:.75rem 1rem; margin-top:.75rem; font-size:.88rem; color:var(--text); border-left:3px solid var(--cyan);">
+      💬 {{ cal.comentario }}
+    </div>
+    {% endif %}
+
+    <!-- Respuesta del admin -->
+    {% if cal.respuesta_admin %}
+    <div style="background:#eaf7ee; border-radius:6px; padding:.75rem 1rem; margin-top:.75rem; font-size:.88rem; color:#1a6630; border-left:3px solid var(--success);">
+      🛡️ <strong>Respuesta del administrador:</strong> {{ cal.respuesta_admin }}
+    </div>
+    {% else %}
+    <form method="POST" action="{{ url_for('admin_responder_calificacion', cid=cal.id) }}" style="margin-top:.75rem;">
+      <div style="display:flex; gap:.5rem; align-items:flex-end;">
+        <div style="flex:1;">
+          <label style="display:block; font-size:.78rem; color:var(--muted); font-weight:700; text-transform:uppercase; letter-spacing:.04em; margin-bottom:.4rem;">
+            Registrar calificación del admin
+          </label>
+          <input type="text" name="respuesta" required placeholder="Escribe la evaluación del administrador..."
+            style="width:100%; background:var(--white); border:1.5px solid var(--border); color:var(--text);
+                   padding:.6rem .9rem; border-radius:8px; font-family:inherit; font-size:.875rem;"/>
+        </div>
+        <button type="submit" class="btn btn-navy btn-sm">💾 Guardar</button>
+      </div>
+    </form>
+    {% endif %}
+  </div>
+  {% endfor %}
+</div>
+{% else %}
+<div class="card">
+  <p style="text-align:center; color:var(--muted); padding:2rem 0;">
+    No hay calificaciones registradas aún.
+  </p>
+</div>
+{% endif %}
+{% endblock %}

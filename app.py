@@ -824,7 +824,8 @@ def mis_reservas():
     u        = usuario_logueado()
     reservas = db.query(Reserva).filter_by(usuario_id=u.id)\
                  .order_by(Reserva.fecha.desc()).all()
-    return render_template("mis_reservas.html", usuario=u, reservas=reservas)
+    ahora = datetime.now()
+    return render_template("mis_reservas.html", usuario=u, reservas=reservas, ahora=ahora)
 
 
 @app.route("/reservas/nueva", methods=["GET", "POST"])
@@ -1246,10 +1247,83 @@ def api_disponibilidad():
 
 
 
-if __name__ == "__main__":
-    from database import crear_base_de_datos
-    crear_base_de_datos()
-    app.run(debug=True)
+# ── Crear reserva desde el panel admin (Sprint 7 - caso 13) ────────────────
+
+@app.route("/admin/reservas/nueva", methods=["GET", "POST"])
+@requiere_login
+@requiere_admin
+def admin_crear_reserva():
+    from database import Reserva, Espacio
+    u        = usuario_logueado()
+    espacios = db.query(Espacio).all()
+    usuarios_lista = db.query(Usuario).all()
+
+    if request.method == "POST":
+        try:
+            usuario_id    = int(request.form.get("usuario_id"))
+            espacio_id    = int(request.form.get("espacio_id"))
+            cant_personas = int(request.form.get("cant_personas"))
+            tipo_evento   = request.form.get("tipo_evento","").strip()
+            finalidad     = request.form.get("finalidad","").strip()
+            indumentaria  = request.form.get("indumentaria","").strip()
+            servicios     = request.form.getlist("servicios_adicionales")
+            fecha         = date.fromisoformat(request.form.get("fecha"))
+            hora_inicio   = dtime.fromisoformat(request.form.get("hora_inicio"))
+            hora_fin      = dtime.fromisoformat(request.form.get("hora_fin"))
+
+            espacio = db.get(Espacio, espacio_id)
+            if not espacio:
+                flash("Espacio no encontrado.", "danger")
+                return render_template("admin_crear_reserva.html", usuario=u,
+                                       espacios=espacios, usuarios_lista=usuarios_lista)
+            try:
+                reserva = Reserva(
+                    usuario_id            = usuario_id,
+                    cant_personas         = cant_personas,
+                    tipo_evento           = tipo_evento,
+                    finalidad             = finalidad or None,
+                    indumentaria          = indumentaria or None,
+                    servicios_adicionales = ", ".join(servicios) if servicios else None,
+                    fecha                 = fecha,
+                    hora_inicio           = hora_inicio,
+                    hora_fin              = hora_fin,
+                    estado                = "aprobada",
+                )
+                reserva.espacios.append(espacio)
+                db.add(reserva)
+                db.commit()
+                flash("Reserva creada y confirmada correctamente.", "success")
+                return redirect(url_for("admin_historial"))
+            except Exception:
+                db.rollback()
+                flash("Error al conectar con la base de datos. No se registró la reserva.", "danger")
+        except Exception as e:
+            flash(f"Datos inválidos: {e}", "danger")
+
+    return render_template("admin_crear_reserva.html", usuario=u,
+                           espacios=espacios, usuarios_lista=usuarios_lista)
+
+
+# ── Eliminar reserva desde el panel admin (Sprint 7 - caso 16) ─────────────
+
+@app.route("/admin/reservas/<int:rid>/eliminar", methods=["POST"])
+@requiere_login
+@requiere_admin
+def admin_eliminar_reserva(rid):
+    from database import Reserva
+    reserva = db.get(Reserva, rid)
+    if not reserva:
+        flash("Reserva no encontrada.", "danger")
+        return redirect(url_for("admin_historial"))
+    try:
+        db.delete(reserva)
+        db.commit()
+        flash("Reserva eliminada correctamente.", "success")
+    except Exception:
+        db.rollback()
+        flash("Error al conectar con la base de datos. No se eliminó la reserva.", "danger")
+    return redirect(url_for("admin_historial"))
+
 
 
 # ══════════════════════════════════════════════════════════════════════════
@@ -1304,12 +1378,14 @@ def historial_reservas():
     }
 
     hoy = date.today()
+    ahora = datetime.now()
     return render_template(
         "historial_reservas.html",
         usuario=u,
         reservas=reservas,
         conteos=conteos,
         hoy=hoy,
+        ahora=ahora,
         filtro_estado=estado,
         filtro_fecha_desde=fecha_desde,
         filtro_fecha_hasta=fecha_hasta,
@@ -1337,8 +1413,10 @@ def calificar_reserva(rid):
         return redirect(url_for("historial_reservas"))
 
     hoy = date.today()
-    if reserva.fecha >= hoy:
-        flash("Solo puedes calificar reservas cuya fecha ya pasó.", "warning")
+    ahora = datetime.now()
+    fecha_hora_fin = datetime.combine(reserva.fecha, reserva.hora_fin)
+    if ahora <= fecha_hora_fin:
+        flash("Solo puedes calificar reservas que ya han finalizado.", "warning")
         return redirect(url_for("historial_reservas"))
 
     # Verificar si ya tiene calificación
@@ -1543,3 +1621,9 @@ def admin_responder_calificacion(cid):
         flash("Error al guardar la respuesta.", "danger")
 
     return redirect(url_for("admin_calificaciones"))
+
+
+if __name__ == "__main__":
+    from database import crear_base_de_datos
+    crear_base_de_datos()
+    app.run(debug=True)

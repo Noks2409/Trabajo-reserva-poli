@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+{% block title %}Calificar reserva{% endblock %}
+{% block content %}
+<div class="page-header">
+  <h1>Registrar calificación</h1>
+  <p>Califica el servicio recibido en tu reserva</p>
+</div>
+
+<div style="max-width:560px;">
+  <!-- Detalle de la reserva -->
+  <div class="card" style="margin-bottom:1.25rem; border-left:4px solid var(--cyan);">
+    <div class="card-title">📋 Reserva a calificar</div>
+    <table>
+      <tr><td style="color:var(--muted); width:40%;">Evento</td><td><strong>{{ reserva.tipo_evento }}</strong></td></tr>
+      <tr><td style="color:var(--muted);">Espacio</td><td>{% for e in reserva.espacios %}{{ e.nombre }}{% endfor %}</td></tr>
+      <tr><td style="color:var(--muted);">Fecha</td><td>{{ reserva.fecha.strftime('%d/%m/%Y') }}</td></tr>
+      <tr><td style="color:var(--muted);">Horario</td><td>{{ reserva.hora_inicio.strftime('%H:%M') }} – {{ reserva.hora_fin.strftime('%H:%M') }}</td></tr>
+    </table>
+  </div>
+
+  <!-- Formulario de calificación -->
+  <div class="card">
+    <div class="card-title">⭐ Tu calificación</div>
+    <form method="POST">
+
+      <!-- Estrellas interactivas -->
+      <div class="form-group">
+        <label>Puntuación <span style="color:var(--danger);">*</span></label>
+        <div id="estrellas" style="display:flex; gap:.5rem; margin-bottom:.5rem;">
+          {% for i in range(1, 6) %}
+          <label style="cursor:pointer; font-size:2rem; text-transform:none; letter-spacing:0; color:#ddd; transition:color .15s;" id="star-label-{{ i }}">
+            <input type="radio" name="puntuacion" value="{{ i }}" required
+                   style="display:none;"
+                   onchange="setStars({{ i }})"/>
+            ★
+          </label>
+          {% endfor %}
+        </div>
+        <p style="font-size:.78rem; color:var(--muted);">1 = Muy malo &nbsp;·&nbsp; 5 = Excelente</p>
+      </div>
+
+      <div class="form-group">
+        <label>Comentario <span style="color:var(--muted); text-transform:none; font-size:.75rem;">(opcional)</span></label>
+        <textarea name="comentario" rows="4" placeholder="Cuéntanos tu experiencia..."
+          style="width:100%; background:var(--white); border:1.5px solid var(--border); color:var(--text);
+                 padding:.7rem .9rem; border-radius:8px; font-family:inherit; font-size:.9rem; resize:vertical;"></textarea>
+      </div>
+
+      <div style="display:flex; gap:.75rem;">
+        <button type="submit" class="btn btn-primary">⭐ Registrar calificación</button>
+        <a href="{{ url_for('historial_reservas') }}" class="btn btn-secondary">Cancelar</a>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+function setStars(n) {
+  for (let i = 1; i <= 5; i++) {
+    const lbl = document.getElementById('star-label-' + i);
+    lbl.style.color = i <= n ? '#f5a623' : '#ddd';
+  }
+}
+// Hover
+document.querySelectorAll('#estrellas label').forEach((lbl, idx) => {
+  lbl.addEventListener('mouseenter', () => setStars(idx + 1));
+  lbl.addEventListener('mouseleave', () => {
+    const checked = document.querySelector('input[name="puntuacion"]:checked');
+    setStars(checked ? parseInt(checked.value) : 0);
+  });
+});
+</script>
+{% endblock %}
