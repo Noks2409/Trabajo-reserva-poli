@@ -31,7 +31,12 @@ app.config["MAIL_DEFAULT_SENDER"] = ("Sistema de Reservas — Poli", "reservas.p
 mail = Mail(app)
 serializer = URLSafeTimedSerializer(app.secret_key)
 
-
+@app.after_request
+def add_header(response):
+    response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+    response.headers["Pragma"] = "no-cache"
+    response.headers["Expires"] = "0"
+    return response
 # ── Funciones de correo ──────────────────────────────────────────────────────
 
 def enviar_correo_reserva_creada(usuario, reserva, espacio):
