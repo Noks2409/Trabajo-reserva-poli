@@ -410,7 +410,7 @@ def registro():
             hash_pw = bcrypt.hashpw(contrasena.encode(), bcrypt.gensalt()).decode()
             if correo.lower().endswith("@poligran.edu.co"):
                 from database import Institucional
-                nuevo = Institucional(nombre=nombre, correo=correo, contrasena=hash_pw)
+                nuevo = Admin(nombre=nombre, correo=correo, contrasena=hash_pw)
             else:
                 nuevo = PersonaExterna(nombre=nombre, correo=correo, contrasena=hash_pw)
             db.add(nuevo)
