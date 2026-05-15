@@ -14,6 +14,7 @@ from database import (crear_base_de_datos, Session as DBSession, Usuario, Admin,
                        PersonaExternaReserva)
 from datetime import date, timedelta, datetime, time as dtime
 from itsdangerous import URLSafeTimedSerializer
+import os
 
 app = Flask(__name__)
 app.secret_key = "clave_secreta_reservas_2025"
@@ -406,7 +407,7 @@ def registro():
                 from database import Institucional
                 nuevo = Institucional(nombre=nombre, correo=correo, contrasena=hash_pw)
             else:
-                nuevo = PersonaExterna(nombre=nombre, correo=correo, contrasena=hash_pw)
+                admin = PersonaExterna(nombre=nombre, correo=correo, contrasena=hash_pw)
             db.add(nuevo)
             db.commit()
             flash("Usuario registrado exitosamente. Inicia sesión.", "success")
