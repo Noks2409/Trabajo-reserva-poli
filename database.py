@@ -32,7 +32,10 @@ engine = create_engine(
         "sslmode": "require"
     }
 )
-
+logistica_id = Column(
+    Integer,
+    ForeignKey("logistica.id")
+)
 # Railway a veces entrega URLs con "postgres://" pero SQLAlchemy necesita "postgresql://"
 if DATABASE_URL.startswith("sqlite"):
     engine = create_engine(DATABASE_URL, echo=False)
@@ -48,7 +51,41 @@ else:
 # Fábrica de sesiones
 Session = scoped_session(sessionmaker(bind=engine))
 
+from sqlalchemy import text
 
+with engine.begin() as conn:
+
+    # Crear tabla logistica si no existe
+    conn.execute(text("""
+        CREATE TABLE IF NOT EXISTS logistica (
+            id SERIAL PRIMARY KEY,
+            nombre VARCHAR(100)
+        )
+    """))
+
+    # Crear columna logistica_id
+    conn.execute(text("""
+        ALTER TABLE reserva
+        ADD COLUMN IF NOT EXISTS logistica_id INTEGER
+    """))
+
+    # Crear foreign key solo si no existe
+    conn.execute(text("""
+        DO $$
+        BEGIN
+            IF NOT EXISTS (
+                SELECT 1
+                FROM information_schema.table_constraints
+                WHERE constraint_name = 'fk_reserva_logistica'
+            ) THEN
+                ALTER TABLE reserva
+                ADD CONSTRAINT fk_reserva_logistica
+                FOREIGN KEY (logistica_id)
+                REFERENCES logistica(id);
+            END IF;
+        END
+        $$;
+    """))
 # ─────────────────────────────────────────────
 #  TABLA INTERMEDIA: Reserva ↔ Espacio (muchos a muchos)
 # ─────────────────────────────────────────────
