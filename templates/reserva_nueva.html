@@ -263,7 +263,8 @@
             <strong>nombre, cedula, fecha_ingreso, fecha_salida</strong>.
             La primera fila se usa como encabezado.
           </p>
-          <a href="#" onclick="descargarPlantilla(); return false;"
+          <a href="{{ url_for('static', filename='plantilla_personas_externas.csv') }}"
+             download="plantilla_personas_externas.csv"
              style="font-size:.78rem; color:var(--cyan-dark); text-decoration:underline;">
             ⬇️ Descargar plantilla de ejemplo
           </a>
@@ -352,15 +353,7 @@ function setTab(tab) {
   document.getElementById('tabExcel').style.color  = isManual ? 'var(--muted)' : 'var(--cyan-dark)';
 }
 
-/* ── Plantilla Excel de ejemplo ────────────────────────────────── */
-function descargarPlantilla() {
-  const csv = 'nombre,cedula,fecha_ingreso,fecha_salida\nJuan Pérez,12345678,2025-06-01,2025-06-01\n';
-  const blob = new Blob([csv], {type:'text/csv'});
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = 'plantilla_personas_externas.csv';
-  a.click();
-}
+
 </script>
 
 

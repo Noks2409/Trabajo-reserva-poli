@@ -41,6 +41,14 @@
           {% if r.servicios_adicionales %}
           <div style="font-size:.78rem; color:var(--muted); margin-top:.2rem;">⚙️ Servicios: {{ r.servicios_adicionales }}</div>
           {% endif %}
+          {% if r.personas_externas %}
+          <button onclick="toggleExternas('ext-usr-{{ r.id }}')"
+                  style="margin-top:.35rem; background:none; border:1px solid var(--cyan-dark);
+                         color:var(--cyan-dark); border-radius:20px; font-size:.72rem;
+                         padding:.2rem .6rem; cursor:pointer;">
+            👥 {{ r.personas_externas | length }} persona(s) externa(s)
+          </button>
+          {% endif %}
         </td>
         <td>{{ r.espacios[0].nombre if r.espacios else '—' }}</td>
         <td>{{ r.fecha.strftime('%d/%m/%Y') }}</td>
@@ -100,6 +108,35 @@
           {% endif %}
         </td>
       </tr>
+      {% if r.personas_externas %}
+      <tr id="ext-usr-{{ r.id }}" style="display:none; background:#f8fbff;">
+        <td colspan="9" style="padding:.75rem 1.25rem;">
+          <div style="font-size:.8rem; font-weight:700; color:var(--cyan-dark); margin-bottom:.5rem;">
+            👥 Personas externas de tu reserva #{{ r.id }}
+          </div>
+          <table style="width:100%; border-collapse:collapse; font-size:.8rem;">
+            <thead>
+              <tr style="background:#e8f4fd;">
+                <th style="padding:.4rem .75rem; text-align:left; color:#003;">Nombre</th>
+                <th style="padding:.4rem .75rem; text-align:left; color:#003;">Cédula</th>
+                <th style="padding:.4rem .75rem; text-align:left; color:#003;">Fecha ingreso</th>
+                <th style="padding:.4rem .75rem; text-align:left; color:#003;">Fecha salida</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for p in r.personas_externas %}
+              <tr style="border-top:1px solid #d0e8f8;">
+                <td style="padding:.35rem .75rem;">{{ p.nombre }}</td>
+                <td style="padding:.35rem .75rem;">{{ p.cedula }}</td>
+                <td style="padding:.35rem .75rem;">{{ p.fecha_ingreso.strftime('%d/%m/%Y') if p.fecha_ingreso else '—' }}</td>
+                <td style="padding:.35rem .75rem;">{{ p.fecha_salida.strftime('%d/%m/%Y') if p.fecha_salida else '—' }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </td>
+      </tr>
+      {% endif %}
       {% endfor %}
     </tbody>
   </table>
@@ -111,4 +148,13 @@
   <a href="{{ url_for('reserva_nueva') }}" class="btn btn-primary" style="margin-top:1rem;">Solicitar primera reserva</a>
 </div>
 {% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+function toggleExternas(id) {
+  const row = document.getElementById(id);
+  row.style.display = row.style.display === 'none' ? 'table-row' : 'none';
+}
+</script>
 {% endblock %}

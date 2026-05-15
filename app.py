@@ -62,9 +62,10 @@ def enviar_correo_reserva_creada(usuario, reserva, espacio):
           </div>
         </div>
         """
-        mail.send(msg)
-    except Exception as e:
-        print(f"Error enviando correo de reserva creada: {e}")
+        try:
+            mail.send(msg)
+        except Exception as e:
+            print(f"Error enviando correo de reserva creada: {e}")
 
 
 def enviar_correo_reserva_aprobada(usuario, reserva, espacio):
@@ -99,9 +100,10 @@ def enviar_correo_reserva_aprobada(usuario, reserva, espacio):
           </div>
         </div>
         """
-        mail.send(msg)
-    except Exception as e:
-        print(f"Error enviando correo de reserva aprobada: {e}")
+        try:
+            mail.send(msg)
+        except Exception as e:
+            print(f"Error enviando correo de reserva creada: {e}")
 
 
 def enviar_correo_reserva_rechazada(usuario, reserva, espacio, justificacion=None):
@@ -146,10 +148,10 @@ def enviar_correo_reserva_rechazada(usuario, reserva, espacio, justificacion=Non
           </div>
         </div>
         """
-        mail.send(msg)
-    except Exception as e:
-        print(f"Error enviando correo de reserva rechazada: {e}")
-
+        try:
+            mail.send(msg)
+        except Exception as e:
+            print(f"Error enviando correo de reserva creada: {e}")
 
 def enviar_correo_reserva_cancelada(usuario, reserva, espacio):
     """Notifica al usuario que su reserva fue cancelada por él mismo."""
@@ -184,9 +186,10 @@ def enviar_correo_reserva_cancelada(usuario, reserva, espacio):
           </div>
         </div>
         """
-        mail.send(msg)
-    except Exception as e:
-        print(f"Error enviando correo de cancelación: {e}")
+        try:
+            mail.send(msg)
+        except Exception as e:
+            print(f"Error enviando correo de reserva creada: {e}")
 
 
 def enviar_correo_recuperacion(correo, nombre, token):
@@ -1060,9 +1063,8 @@ def recuperar_contrasena_reset(token):
 def admin_reservas():
     from database import Reserva
     u = usuario_logueado()
-    estado = request.args.get("estado", "pendiente")
-    reservas = db.query(Reserva).filter_by(estado=estado).all()
-    return render_template("admin_reservas.html", usuario=u, reservas=reservas, estado=estado)
+    reservas = db.query(Reserva).filter_by(estado="pendiente").all()
+    return render_template("admin_reservas.html", usuario=u, reservas=reservas)
 
 
 @app.route("/admin/reservas/<int:rid>/aprobar", methods=["GET", "POST"])
@@ -1450,54 +1452,68 @@ def personas_externas_excel(rid):
         flash("No se seleccionó ningún archivo.", "danger")
         return redirect(url_for("mis_reservas"))
 
-    nombre = archivo.filename.lower()
-    if not (nombre.endswith(".xlsx") or nombre.endswith(".xls")):
-        flash("El archivo debe ser formato Excel (.xlsx o .xls).", "danger")
+    nombre_archivo = archivo.filename.lower()
+    if not (nombre_archivo.endswith(".xlsx") or nombre_archivo.endswith(".xls") or nombre_archivo.endswith(".csv")):
+        flash("El archivo debe ser formato Excel (.xlsx o .xls) o CSV (.csv).", "danger")
         return redirect(url_for("mis_reservas"))
 
+    def parsear_fecha(val):
+        if val is None:
+            return None
+        if hasattr(val, 'date'):
+            return val.date() if hasattr(val, 'hour') else val
+        for fmt in ("%Y-%m-%d", "%d/%m/%Y", "%d-%m-%Y"):
+            try:
+                return datetime.strptime(str(val).strip(), fmt).date()
+            except ValueError:
+                continue
+        return None
+
     try:
-        import openpyxl
-        from io import BytesIO
-        wb = openpyxl.load_workbook(BytesIO(archivo.read()), data_only=True)
-        ws = wb.active
-
-        # Validar encabezados esperados (fila 1)
-        headers = [str(ws.cell(1, c).value or "").strip().lower() for c in range(1, 5)]
-        expected = ["nombre", "cedula", "fecha_ingreso", "fecha_salida"]
-        if headers[:4] != expected:
-            flash(
-                f"Estructura incorrecta. La primera fila debe contener: {', '.join(expected)}",
-                "danger"
-            )
-            return redirect(url_for("mis_reservas"))
-
         agregados = 0
         errores   = []
-        for fila_num, row in enumerate(ws.iter_rows(min_row=2, values_only=True), start=2):
-            nombre_p = str(row[0] or "").strip()
-            cedula_p = str(row[1] or "").strip()
-            ing_raw  = row[2]
-            sal_raw  = row[3]
+        filas     = []
+
+        if nombre_archivo.endswith(".csv"):
+            import csv, io
+            contenido = archivo.read().decode("utf-8-sig")  # utf-8-sig elimina BOM si existe
+            reader = csv.reader(io.StringIO(contenido), delimiter=";")
+            # intentar con coma si punto y coma no da 4 columnas
+            primera_linea = contenido.split("\n")[0]
+            if primera_linea.count(";") < 3 and primera_linea.count(",") >= 3:
+                reader = csv.reader(io.StringIO(contenido), delimiter=",")
+            rows = list(reader)
+            expected = ["nombre", "cedula", "fecha_ingreso", "fecha_salida"]
+            headers = [c.strip().lower() for c in rows[0]] if rows else []
+            if headers[:4] != expected:
+                flash(f"Estructura incorrecta. La primera fila debe contener: {', '.join(expected)}", "danger")
+                return redirect(url_for("mis_reservas"))
+            for fila_num, row in enumerate(rows[1:], start=2):
+                if len(row) < 2:
+                    continue
+                filas.append((fila_num, row[0], row[1], row[2] if len(row) > 2 else None, row[3] if len(row) > 3 else None))
+        else:
+            import openpyxl
+            from io import BytesIO
+            wb = openpyxl.load_workbook(BytesIO(archivo.read()), data_only=True)
+            ws = wb.active
+            headers = [str(ws.cell(1, c).value or "").strip().lower() for c in range(1, 5)]
+            expected = ["nombre", "cedula", "fecha_ingreso", "fecha_salida"]
+            if headers[:4] != expected:
+                flash(f"Estructura incorrecta. La primera fila debe contener: {', '.join(expected)}", "danger")
+                return redirect(url_for("mis_reservas"))
+            for fila_num, row in enumerate(ws.iter_rows(min_row=2, values_only=True), start=2):
+                filas.append((fila_num, row[0], row[1], row[2], row[3]))
+
+        for fila_num, nombre_p, cedula_p, ing_raw, sal_raw in filas:
+            nombre_p = str(nombre_p or "").strip()
+            cedula_p = str(cedula_p or "").strip()
 
             if not nombre_p and not cedula_p:
-                continue  # fila vacía — ignorar
+                continue
             if not nombre_p or not cedula_p:
                 errores.append(f"Fila {fila_num}: nombre y cédula son obligatorios.")
                 continue
-
-            # Parsear fechas (puede venir como date/datetime o string)
-            def parsear_fecha(val):
-                if val is None:
-                    return None
-                if hasattr(val, 'date'):
-                    return val.date() if hasattr(val, 'hour') else val
-                try:
-                    return datetime.strptime(str(val).strip(), "%Y-%m-%d").date()
-                except ValueError:
-                    try:
-                        return datetime.strptime(str(val).strip(), "%d/%m/%Y").date()
-                    except ValueError:
-                        return None
 
             fi = parsear_fecha(ing_raw)
             fs = parsear_fecha(sal_raw)

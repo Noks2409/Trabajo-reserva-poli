@@ -3,17 +3,7 @@
 {% block content %}
 <div class="page-header">
   <h1>Gestión de reservas</h1>
-  <p>Aprueba o rechaza las solicitudes de reserva</p>
-</div>
-
-<!-- Filtro por estado -->
-<div class="card" style="margin-bottom:1.25rem;">
-  <div style="display:flex; gap:.75rem; flex-wrap:wrap;">
-    <a href="{{ url_for('admin_reservas', estado='pendiente') }}" class="btn {% if estado=='pendiente' %}btn-primary{% else %}btn-secondary{% endif %}">⏳ En revisión</a>
-    <a href="{{ url_for('admin_reservas', estado='aprobada') }}" class="btn {% if estado=='aprobada' %}btn-primary{% else %}btn-secondary{% endif %}">✅ Confirmadas</a>
-    <a href="{{ url_for('admin_reservas', estado='rechazada') }}" class="btn {% if estado=='rechazada' %}btn-primary{% else %}btn-secondary{% endif %}">❌ Rechazadas</a>
-    <a href="{{ url_for('admin_reservas', estado='cancelada') }}" class="btn {% if estado=='cancelada' %}btn-primary{% else %}btn-secondary{% endif %}">🚫 Canceladas</a>
-  </div>
+  <p>Solicitudes en revisión pendientes de aprobación o rechazo</p>
 </div>
 
 <div class="card">
@@ -28,36 +18,85 @@
         <th>Fecha</th>
         <th>Horario</th>
         <th>Personas</th>
-        {% if estado in ['pendiente', 'aprobada'] %}<th>Acciones</th>{% endif %}
+        <th>Acciones</th>
       </tr>
     </thead>
     <tbody>
       {% for r in reservas %}
       <tr>
         <td style="color:var(--muted); font-size:.8rem;">#{{ r.id }}</td>
-        <td><strong>{{ r.usuario.nombre }}</strong><br><span style="font-size:.78rem; color:var(--muted);">{{ r.usuario.correo }}</span></td>
-        <td>{{ r.tipo_evento }}<br><span style="font-size:.78rem; color:var(--muted);">{{ r.finalidad }}</span></td>
+        <td>
+          <strong>{{ r.usuario.nombre }}</strong><br>
+          <span style="font-size:.78rem; color:var(--muted);">{{ r.usuario.correo }}</span>
+        </td>
+        <td>
+          {{ r.tipo_evento }}<br>
+          <span style="font-size:.78rem; color:var(--muted);">{{ r.finalidad }}</span>
+          {% if r.personas_externas %}
+          <br>
+          <button onclick="toggleExternas('ext-{{ r.id }}')"
+                  style="margin-top:.35rem; background:none; border:1px solid var(--cyan-dark);
+                         color:var(--cyan-dark); border-radius:20px; font-size:.72rem;
+                         padding:.2rem .6rem; cursor:pointer;">
+            👥 {{ r.personas_externas | length }} persona(s) externa(s)
+          </button>
+          {% endif %}
+        </td>
         <td>{% for e in r.espacios %}{{ e.nombre }}{% endfor %}</td>
         <td>{{ r.fecha.strftime('%d/%m/%Y') }}</td>
         <td>{{ r.hora_inicio.strftime('%H:%M') }} – {{ r.hora_fin.strftime('%H:%M') }}</td>
         <td style="text-align:center;">{{ r.cant_personas }}</td>
-        {% if estado in ['pendiente', 'aprobada'] %}
         <td>
           <div style="display:flex; gap:.4rem; flex-wrap:wrap;">
-            {% if estado == 'pendiente' %}
             <a href="{{ url_for('admin_aprobar_reserva', rid=r.id) }}" class="btn btn-success btn-sm">✅ Aprobar</a>
             <a href="{{ url_for('admin_rechazar_reserva', rid=r.id) }}" class="btn btn-danger btn-sm">❌ Rechazar</a>
-            {% endif %}
             <a href="{{ url_for('admin_modificar_reserva', rid=r.id) }}" class="btn btn-secondary btn-sm">✏️ Modificar</a>
           </div>
         </td>
-        {% endif %}
       </tr>
+      {% if r.personas_externas %}
+      <tr id="ext-{{ r.id }}" style="display:none; background:#f8fbff;">
+        <td colspan="8" style="padding:.75rem 1.25rem;">
+          <div style="font-size:.8rem; font-weight:700; color:var(--cyan-dark); margin-bottom:.5rem;">
+            👥 Personas externas de la reserva #{{ r.id }}
+          </div>
+          <table style="width:100%; border-collapse:collapse; font-size:.8rem;">
+            <thead>
+              <tr style="background:#e8f4fd;">
+                <th style="padding:.4rem .75rem; text-align:left; color:#003;">Nombre</th>
+                <th style="padding:.4rem .75rem; text-align:left; color:#003;">Cédula</th>
+                <th style="padding:.4rem .75rem; text-align:left; color:#003;">Fecha ingreso</th>
+                <th style="padding:.4rem .75rem; text-align:left; color:#003;">Fecha salida</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for p in r.personas_externas %}
+              <tr style="border-top:1px solid #d0e8f8;">
+                <td style="padding:.35rem .75rem;">{{ p.nombre }}</td>
+                <td style="padding:.35rem .75rem;">{{ p.cedula }}</td>
+                <td style="padding:.35rem .75rem;">{{ p.fecha_ingreso.strftime('%d/%m/%Y') if p.fecha_ingreso else '—' }}</td>
+                <td style="padding:.35rem .75rem;">{{ p.fecha_salida.strftime('%d/%m/%Y') if p.fecha_salida else '—' }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </td>
+      </tr>
+      {% endif %}
       {% endfor %}
     </tbody>
   </table>
   {% else %}
-  <p style="text-align:center; color:var(--muted); padding:2rem 0;">No hay reservas con este estado.</p>
+  <p style="text-align:center; color:var(--muted); padding:2rem 0;">No hay reservas en revisión en este momento.</p>
   {% endif %}
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function toggleExternas(id) {
+  const row = document.getElementById(id);
+  row.style.display = row.style.display === 'none' ? 'table-row' : 'none';
+}
+</script>
 {% endblock %}
