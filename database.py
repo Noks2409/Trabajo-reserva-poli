@@ -76,7 +76,7 @@ class Usuario(Base):
     nombre     = Column(String, nullable=False)
     correo     = Column(String, nullable=False, unique=True)
     contrasena = Column(String, nullable=False)
-    rol        = Column(String, nullable=False)  # 'docente' | 'administrativo' | 'externa' | 'admin'
+    rol        = Column(String, nullable=False)  # 'docente' | 'administrativo' | 'externa' | 'admin' | 'logistica'
 
     # Estado y control de cuenta
     activo  = Column(Boolean, default=True, nullable=False)   # False = cuenta desactivada
@@ -94,7 +94,12 @@ class Usuario(Base):
     telefono = Column(String, nullable=True)
 
     # Relaciones
-    reservas = relationship("Reserva", back_populates="usuario")
+    reservas = relationship("Reserva", back_populates="usuario", foreign_keys="Reserva.usuario_id")
+    reservas_logistica = relationship(
+        "Reserva",
+        foreign_keys="Reserva.logistica_id",
+        back_populates="logistica",
+    )
     sanciones_recibidas = relationship(
         "Sancion",
         foreign_keys="Sancion.usuario_id",
@@ -266,6 +271,17 @@ class Institucional(Usuario):
         return cal
 
 
+class PersonalLogistica(Usuario):
+    """
+    Personal operativo creado y administrado exclusivamente por un administrador.
+    No crea, modifica ni elimina reservas; solo consulta las que tenga asignadas.
+    """
+    __mapper_args__ = {"polymorphic_identity": "logistica"}
+
+    def consultar_reservas_asignadas(self, session):
+        return session.query(Reserva).filter_by(logistica_id=self.id).all()
+
+
 class Admin(Usuario):
     __mapper_args__ = {"polymorphic_identity": "admin"}
 
@@ -348,9 +364,11 @@ class Reserva(Base):
     # Estado puede ser: 'pendiente' | 'aprobada' | 'rechazada' | 'cancelada'
 
     usuario_id   = Column(Integer, ForeignKey("usuario.id"), nullable=False)
+    logistica_id = Column(Integer, ForeignKey("usuario.id"), nullable=True)
 
     # Relaciones
-    usuario            = relationship("Usuario",               back_populates="reservas")
+    usuario            = relationship("Usuario",               foreign_keys=[usuario_id], back_populates="reservas")
+    logistica          = relationship("Usuario",               foreign_keys=[logistica_id], back_populates="reservas_logistica")
     espacios           = relationship("Espacio",               secondary=reserva_espacio, back_populates="reservas")
     calificacion       = relationship("Calificacion",          back_populates="reserva", uselist=False)
     personas_externas  = relationship("PersonaExternaReserva", back_populates="reserva",
@@ -679,6 +697,11 @@ def _migrar_esquema():
         # ── Tabla: reserva ───────────────────────────────────────────
         # (Las columnas eliminadas como cant_utileros se mantienen en la BD por
         #  compatibilidad pero ya no se usan en la aplicación.)
+        cur.execute("PRAGMA table_info(reserva)")
+        cols_reserva = {row[1] for row in cur.fetchall()}
+        if "logistica_id" not in cols_reserva:
+            cur.execute("ALTER TABLE reserva ADD COLUMN logistica_id INTEGER REFERENCES usuario(id)")
+            print("[MIGRACIÓN] 'reserva.logistica_id' agregada.")
 
         # ── Tabla: persona_externa_reserva ───────────────────────────
         # La tabla se crea automáticamente por create_all si no existe.

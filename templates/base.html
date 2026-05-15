@@ -91,6 +91,7 @@
     .pill-administrativo { background: #e8eaf6; color: #3c3f8f; }
     .pill-externa        { background: #eaf7ee; color: #1a6630; }
     .pill-institucional  { background: #e0f7fc; color: #005f73; border: 1px solid #00b4d8; }
+    .pill-logistica      { background: #f0e8ff; color: #4b267a; }
 
     .stat { padding: 1.25rem 1.5rem; }
     .stat-value { font-size: 2rem; font-weight: 800; font-family: 'Nunito', sans-serif; color: var(--navy); }
@@ -123,6 +124,9 @@
   </div>
   <div class="nav-links">
     <a href="{{ url_for('dashboard') }}">Inicio</a>
+    {% if usuario and usuario.rol == 'logistica' %}
+    <a href="{{ url_for('logistica_panel') }}">Panel logistica</a>
+    {% else %}
     <a href="{{ url_for('calendario') }}">📅 Calendario</a>
     <a href="{{ url_for('mis_reservas') }}">Mis reservas</a>
     <a href="{{ url_for('reserva_nueva') }}">Nueva reserva</a>
@@ -135,11 +139,13 @@
       </span>
       Mi perfil
     </a>
+    {% endif %}
     {% if usuario and usuario.rol == 'admin' %}
       <a href="{{ url_for('admin_historial') }}">Historial <span class="nav-badge">Admin</span></a>
       <a href="{{ url_for('admin_calificaciones') }}">Calificaciones <span class="nav-badge">Admin</span></a>
       <a href="{{ url_for('admin_reservas') }}">Reservas <span class="nav-badge">Admin</span></a>
       <a href="{{ url_for('admin_usuarios') }}">Usuarios <span class="nav-badge">Admin</span></a>
+      <a href="{{ url_for('admin_logistica') }}">Logistica <span class="nav-badge">Admin</span></a>
       <a href="{{ url_for('admin_sanciones') }}">Sanciones <span class="nav-badge">Admin</span></a>
       <a href="{{ url_for('admin_agenda') }}">Agenda <span class="nav-badge">Admin</span></a>
       <a href="{{ url_for('admin_espacios') }}">Espacios <span class="nav-badge">Admin</span></a>
