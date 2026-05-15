@@ -28,9 +28,20 @@ app.config["MAIL_USERNAME"] = "reservas.poligranco@gmail.com"
 app.config["MAIL_PASSWORD"] = "hzro gypt dspm sbvc"
 app.config["MAIL_DEFAULT_SENDER"] = ("Sistema de Reservas — Poli", "reservas.poligranco@gmail.com")
 
+class Reserva(db.Model):
+    __tablename__ = "reserva"
+
+    id = db.Column(db.Integer, primary_key=True)
+
+    # otros campos...
+
+    logistica_id = db.Column(
+        db.Integer,
+        db.ForeignKey("logistica.id")
+    )
 mail = Mail(app)
 serializer = URLSafeTimedSerializer(app.secret_key)
-
+logistica = db.relationship("Logistica")
 @app.after_request
 def add_header(response):
     response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
