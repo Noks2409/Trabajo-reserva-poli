@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}Crear Personal de Logística{% endblock %}
+{% block content %}
+<div class="page-header">
+  <h1>Crear personal de logística</h1>
+  <p>Solo el administrador puede crear cuentas de logística</p>
+</div>
+<div class="card" style="max-width:480px;">
+  <form method="POST">
+    <div class="form-group">
+      <label>Nombre completo</label>
+      <input type="text" name="nombre" required placeholder="Ej: Carlos Ramírez"/>
+    </div>
+    <div class="form-group">
+      <label>Correo electrónico</label>
+      <input type="email" name="correo" required placeholder="correo@ejemplo.com"/>
+    </div>
+    <div class="form-group">
+      <label>Contraseña temporal</label>
+      <input type="password" name="contrasena" required placeholder="Mínimo 6 caracteres"/>
+    </div>
+    <div style="display:flex; gap:.75rem; margin-top:1.25rem;">
+      <button type="submit" class="btn btn-primary">Crear cuenta</button>
+      <a href="{{ url_for('admin_logistica') }}" class="btn btn-secondary">Cancelar</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

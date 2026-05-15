@@ -1,0 +1,107 @@
+{% extends "base.html" %}
+{% block title %}Detalle de Reserva #{{ reserva.id }}{% endblock %}
+{% block content %}
+<div class="page-header">
+  <h1>Reserva #{{ reserva.id }}</h1>
+  <p>Detalle completo de la solicitud</p>
+</div>
+
+<div style="display:grid; gap:1.25rem; grid-template-columns:1fr 1fr;">
+
+  <!-- Información del evento -->
+  <div class="card">
+    <div class="card-title">📋 Información del evento</div>
+    <table style="width:100%;"><tbody>
+      <tr><td style="color:var(--muted);font-size:.8rem;width:40%;padding:.5rem 0;">Tipo de evento</td><td><strong>{{ reserva.tipo_evento }}</strong></td></tr>
+      <tr><td style="color:var(--muted);font-size:.8rem;padding:.5rem 0;">Finalidad</td><td>{{ reserva.finalidad or '—' }}</td></tr>
+      <tr><td style="color:var(--muted);font-size:.8rem;padding:.5rem 0;">Indumentaria</td><td>{{ reserva.indumentaria or '—' }}</td></tr>
+      <tr><td style="color:var(--muted);font-size:.8rem;padding:.5rem 0;">Servicios adicionales</td><td>{{ reserva.servicios_adicionales or '—' }}</td></tr>
+      <tr><td style="color:var(--muted);font-size:.8rem;padding:.5rem 0;">Cantidad de personas</td><td>{{ reserva.cant_personas }}</td></tr>
+      <tr><td style="color:var(--muted);font-size:.8rem;padding:.5rem 0;">Estado</td><td>
+        {% set colores = {'pendiente':'#fff3cd','aprobada':'#eaf7ee','rechazada':'#fdecea','cancelada':'#f5f5f5'} %}
+        {% set textos  = {'pendiente':'#7a5c00','aprobada':'#1a6630','rechazada':'#8b1a1a','cancelada':'#555'} %}
+        <span class="pill" style="background:{{ colores.get(reserva.estado,'#eee') }};color:{{ textos.get(reserva.estado,'#333') }};">{{ reserva.estado | upper }}</span>
+      </td></tr>
+      {% if reserva.justificacion_rechazo %}
+      <tr><td style="color:var(--muted);font-size:.8rem;padding:.5rem 0;">Motivo rechazo</td><td style="color:var(--danger);">{{ reserva.justificacion_rechazo }}</td></tr>
+      {% endif %}
+    </tbody></table>
+  </div>
+
+  <!-- Fecha, horario y espacio -->
+  <div class="card">
+    <div class="card-title">📅 Fecha y espacio</div>
+    <table style="width:100%;"><tbody>
+      <tr><td style="color:var(--muted);font-size:.8rem;width:40%;padding:.5rem 0;">Fecha</td><td><strong>{{ reserva.fecha.strftime('%A, %d de %B de %Y') }}</strong></td></tr>
+      <tr><td style="color:var(--muted);font-size:.8rem;padding:.5rem 0;">Horario</td><td>{{ reserva.hora_inicio.strftime('%H:%M') }} – {{ reserva.hora_fin.strftime('%H:%M') }}</td></tr>
+      <tr><td style="color:var(--muted);font-size:.8rem;padding:.5rem 0;">Espacio</td><td>
+        {% for e in reserva.espacios %}<strong>{{ e.nombre }}</strong> ({{ e.capacidad }} personas){% endfor %}
+      </td></tr>
+    </tbody></table>
+  </div>
+
+  <!-- Solicitante -->
+  <div class="card">
+    <div class="card-title">👤 Solicitante</div>
+    <table style="width:100%;"><tbody>
+      <tr><td style="color:var(--muted);font-size:.8rem;width:40%;padding:.5rem 0;">Nombre</td><td><strong>{{ reserva.usuario.nombre }}</strong></td></tr>
+      <tr><td style="color:var(--muted);font-size:.8rem;padding:.5rem 0;">Correo</td><td>{{ reserva.usuario.correo }}</td></tr>
+      <tr><td style="color:var(--muted);font-size:.8rem;padding:.5rem 0;">Rol</td><td><span class="pill pill-{{ reserva.usuario.rol }}">{{ reserva.usuario.rol }}</span></td></tr>
+    </tbody></table>
+  </div>
+
+  <!-- Logística asignada -->
+  <div class="card">
+    <div class="card-title">🔧 Logística asignada</div>
+    {% if reserva.logistica %}
+    <table style="width:100%;"><tbody>
+      <tr><td style="color:var(--muted);font-size:.8rem;width:40%;padding:.5rem 0;">Nombre</td><td><strong>{{ reserva.logistica.nombre }}</strong></td></tr>
+      <tr><td style="color:var(--muted);font-size:.8rem;padding:.5rem 0;">Correo</td><td>{{ reserva.logistica.correo }}</td></tr>
+    </tbody></table>
+    {% if usuario.rol == 'admin' %}
+    <div style="margin-top:.75rem;">
+      <a href="{{ url_for('admin_asignar_logistica', rid=reserva.id) }}" class="btn btn-secondary btn-sm">✏️ Cambiar asignación</a>
+    </div>
+    {% endif %}
+    {% else %}
+    <p style="color:var(--muted);font-size:.875rem;">No hay personal de logística asignado.</p>
+    {% if usuario.rol == 'admin' and reserva.estado == 'aprobada' %}
+    <a href="{{ url_for('admin_asignar_logistica', rid=reserva.id) }}" class="btn btn-primary btn-sm" style="margin-top:.5rem;">+ Asignar logística</a>
+    {% endif %}
+    {% endif %}
+  </div>
+</div>
+
+<!-- Personas externas -->
+{% if reserva.personas_externas %}
+<div class="card" style="margin-top:1.25rem;">
+  <div class="card-title">👥 Personas externas ({{ reserva.personas_externas | length }})</div>
+  <table>
+    <thead><tr><th>Nombre</th><th>Cédula</th><th>Fecha ingreso</th><th>Fecha salida</th></tr></thead>
+    <tbody>
+      {% for p in reserva.personas_externas %}
+      <tr>
+        <td>{{ p.nombre }}</td>
+        <td>{{ p.cedula }}</td>
+        <td>{{ p.fecha_ingreso.strftime('%d/%m/%Y') if p.fecha_ingreso else '—' }}</td>
+        <td>{{ p.fecha_salida.strftime('%d/%m/%Y') if p.fecha_salida else '—' }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+<!-- Calificación -->
+{% if reserva.calificacion %}
+<div class="card" style="margin-top:1.25rem;">
+  <div class="card-title">⭐ Calificación del servicio</div>
+  <p>Puntuación: <strong>{{ reserva.calificacion.puntuacion }}/5</strong></p>
+  {% if reserva.calificacion.comentario %}<p style="color:var(--muted); font-size:.875rem; margin-top:.4rem;">{{ reserva.calificacion.comentario }}</p>{% endif %}
+</div>
+{% endif %}
+
+<div style="margin-top:1.5rem;">
+  <a href="{{ url_for('mis_reservas') if usuario.rol != 'admin' else url_for('admin_historial') }}" class="btn btn-secondary">← Volver</a>
+</div>
+{% endblock %}

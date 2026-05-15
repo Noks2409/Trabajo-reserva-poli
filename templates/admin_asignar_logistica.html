@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}Asignar Logística — Reserva #{{ reserva.id }}{% endblock %}
+{% block content %}
+<div class="page-header">
+  <h1>Asignar logística</h1>
+  <p>Reserva #{{ reserva.id }} — {{ reserva.tipo_evento }} · {{ reserva.fecha.strftime('%d/%m/%Y') }}</p>
+</div>
+<div class="card" style="max-width:480px;">
+  <form method="POST">
+    <div class="form-group">
+      <label>Personal de logística</label>
+      <select name="logistica_id">
+        <option value="">— Sin asignar —</option>
+        {% for p in personal %}
+        <option value="{{ p.id }}" {% if reserva.logistica_id == p.id %}selected{% endif %}>{{ p.nombre }} ({{ p.correo }})</option>
+        {% endfor %}
+      </select>
+    </div>
+    {% if not personal %}
+    <p style="color:var(--warning);font-size:.875rem;margin-bottom:1rem;">⚠️ No hay personal de logística activo. <a href="{{ url_for('admin_logistica_nuevo') }}">Crear uno</a>.</p>
+    {% endif %}
+    <div style="display:flex; gap:.75rem; margin-top:1.25rem;">
+      <button type="submit" class="btn btn-primary">Guardar asignación</button>
+      <a href="{{ url_for('admin_historial') }}" class="btn btn-secondary">Cancelar</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

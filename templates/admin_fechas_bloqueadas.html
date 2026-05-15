@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block title %}Fechas Bloqueadas{% endblock %}
+{% block content %}
+<div class="page-header">
+  <h1>Fechas bloqueadas</h1>
+  <p>Bloquea fechas específicas para impedir reservas. Permanecen bloqueadas hasta que las desbloquees manualmente.</p>
+</div>
+
+<div class="card" style="max-width:480px; margin-bottom:1.5rem;">
+  <div class="card-title">🚫 Bloquear nueva fecha</div>
+  <form method="POST" action="{{ url_for('admin_fecha_bloqueada_nueva') }}" style="display:flex;gap:.75rem;align-items:flex-end;flex-wrap:wrap;">
+    <div class="form-group" style="margin:0;flex:1;min-width:160px;">
+      <label>Fecha</label>
+      <input type="date" name="fecha" required/>
+    </div>
+    <div class="form-group" style="margin:0;flex:2;min-width:200px;">
+      <label>Motivo (opcional)</label>
+      <input type="text" name="motivo" placeholder="Ej: Festivo, mantenimiento..."/>
+    </div>
+    <button type="submit" class="btn btn-danger" style="margin-bottom:1.1rem;">Bloquear fecha</button>
+  </form>
+</div>
+
+<div class="card">
+  <div class="card-title">📋 Fechas actualmente bloqueadas</div>
+  {% if fechas %}
+  <table>
+    <thead><tr><th>Fecha</th><th>Motivo</th><th>Bloqueada por</th><th>Acción</th></tr></thead>
+    <tbody>
+      {% for f in fechas %}
+      <tr>
+        <td><strong>{{ f.fecha.strftime('%A, %d de %B de %Y') }}</strong></td>
+        <td style="color:var(--muted);">{{ f.motivo or '—' }}</td>
+        <td style="font-size:.8rem;color:var(--muted);">{{ f.admin.nombre if f.admin else '—' }}</td>
+        <td>
+          <form method="POST" action="{{ url_for('admin_fecha_bloqueada_eliminar', fid=f.id) }}" onsubmit="return confirm('¿Desbloquear el {{ f.fecha.strftime('%d/%m/%Y') }}?')">
+            <button type="submit" class="btn btn-sm" style="background:#eaf7ee;border:1.5px solid #28a745;color:#1a6630;">🔓 Desbloquear</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p style="text-align:center;color:var(--muted);padding:2rem 0;">No hay fechas bloqueadas manualmente.</p>
+  {% endif %}
+</div>
+{% endblock %}

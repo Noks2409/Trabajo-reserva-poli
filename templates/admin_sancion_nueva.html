@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block title %}Nueva Sanción{% endblock %}
+{% block content %}
+<div class="page-header">
+  <h1>Registrar sanción</h1>
+  <p>Asocia la sanción al usuario y opcionalmente a una reserva</p>
+</div>
+<div class="card" style="max-width:560px;">
+  <form method="POST">
+    <div class="form-group">
+      <label>Usuario sancionado</label>
+      <select name="usuario_id" required>
+        <option value="">— Selecciona usuario —</option>
+        {% for u in usuarios %}
+        <option value="{{ u.id }}">{{ u.nombre }} ({{ u.rol }})</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Tipo de sanción</label>
+      <select name="tipo">
+        <option value="advertencia">⚠️ Advertencia</option>
+        <option value="suspension">🚫 Suspensión</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Reserva relacionada (opcional)</label>
+      <select name="reserva_id">
+        <option value="">— Sin reserva asociada —</option>
+        {% for r in reservas %}
+        <option value="{{ r.id }}">#{{ r.id }} — {{ r.tipo_evento }} ({{ r.fecha.strftime('%d/%m/%Y') }})</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Descripción</label>
+      <textarea name="descripcion" rows="3" required placeholder="Describe el motivo de la sanción..."
+                style="width:100%;border:1.5px solid var(--border);border-radius:8px;padding:.65rem .9rem;font-family:inherit;font-size:.9rem;resize:vertical;"></textarea>
+    </div>
+    <div style="display:flex;gap:.75rem;margin-top:1.25rem;">
+      <button type="submit" class="btn btn-primary">Registrar sanción</button>
+      <a href="{{ url_for('admin_sanciones') }}" class="btn btn-secondary">Cancelar</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

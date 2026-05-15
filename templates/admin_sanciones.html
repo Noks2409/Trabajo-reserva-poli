@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block title %}Sanciones{% endblock %}
+{% block content %}
+<div class="page-header">
+  <h1>Sanciones</h1>
+  <p>Registro de sanciones aplicadas a usuarios</p>
+</div>
+<div style="margin-bottom:1rem;">
+  <a href="{{ url_for('admin_sancion_nueva') }}" class="btn btn-primary">+ Nueva sanción</a>
+</div>
+<div class="card">
+  {% if sanciones %}
+  <table>
+    <thead><tr><th>ID</th><th>Usuario</th><th>Tipo</th><th>Descripción</th><th>Reserva</th><th>Fecha</th><th>Aplicada por</th></tr></thead>
+    <tbody>
+      {% for s in sanciones %}
+      <tr>
+        <td style="color:var(--muted);font-size:.8rem;">#{{ s.id }}</td>
+        <td><strong>{{ s.usuario.nombre }}</strong><br><span style="font-size:.78rem;color:var(--muted);">{{ s.usuario.correo }}</span></td>
+        <td>
+          {% if s.tipo == 'suspension' %}
+            <span class="pill" style="background:#fdecea;color:#8b1a1a;">🚫 Suspensión</span>
+          {% else %}
+            <span class="pill" style="background:#fff3cd;color:#7a5c00;">⚠️ Advertencia</span>
+          {% endif %}
+        </td>
+        <td style="font-size:.875rem;">{{ s.descripcion }}</td>
+        <td style="color:var(--muted);font-size:.8rem;">{% if s.reserva %}#{{ s.reserva.id }}{% else %}—{% endif %}</td>
+        <td style="color:var(--muted);font-size:.8rem;">{{ s.fecha.strftime('%d/%m/%Y') }}</td>
+        <td style="font-size:.8rem;">{{ s.admin.nombre }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p style="text-align:center;color:var(--muted);padding:2rem 0;">No hay sanciones registradas.</p>
+  {% endif %}
+</div>
+{% endblock %}

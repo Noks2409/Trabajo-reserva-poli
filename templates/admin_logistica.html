@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block title %}Personal de Logística{% endblock %}
+{% block content %}
+<div class="page-header">
+  <h1>Personal de logística</h1>
+  <p>Gestiona el personal de logística del sistema</p>
+</div>
+<div style="margin-bottom:1rem;">
+  <a href="{{ url_for('admin_logistica_nuevo') }}" class="btn btn-primary">+ Crear personal</a>
+</div>
+<div class="card">
+  {% if personal %}
+  <table>
+    <thead><tr><th>ID</th><th>Nombre</th><th>Correo</th><th>Estado</th><th>Acciones</th></tr></thead>
+    <tbody>
+      {% for p in personal %}
+      <tr>
+        <td style="color:var(--muted);font-size:.8rem;">#{{ p.id }}</td>
+        <td><strong>{{ p.nombre }}</strong></td>
+        <td style="color:var(--muted);">{{ p.correo }}</td>
+        <td>
+          {% if p.activo %}
+            <span class="pill" style="background:#eaf7ee;color:#1a6630;">✅ Activo</span>
+          {% else %}
+            <span class="pill" style="background:#fdecea;color:#8b1a1a;">🔒 Inactivo</span>
+          {% endif %}
+        </td>
+        <td>
+          {% if p.activo %}
+          <form method="POST" action="{{ url_for('admin_logistica_desactivar', uid=p.id) }}" style="display:inline;" onsubmit="return confirm('¿Desactivar a {{ p.nombre }}?')">
+            <button type="submit" class="btn btn-danger btn-sm">🔒 Desactivar</button>
+          </form>
+          {% else %}
+          <form method="POST" action="{{ url_for('admin_logistica_activar', uid=p.id) }}" style="display:inline;">
+            <button type="submit" class="btn btn-sm" style="background:#eaf7ee;border:1.5px solid #28a745;color:#1a6630;">🔓 Activar</button>
+          </form>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p style="text-align:center;color:var(--muted);padding:2rem 0;">No hay personal de logística registrado.</p>
+  {% endif %}
+</div>
+{% endblock %}

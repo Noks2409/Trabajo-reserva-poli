@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% block title %}Mi Panel — Logística{% endblock %}
+{% block content %}
+<div class="page-header">
+  <h1>Panel de logística</h1>
+  <p>Bienvenido, {{ usuario.nombre }}</p>
+</div>
+
+{% if reserva %}
+<div class="card">
+  <div class="card-title">📋 Reserva asignada</div>
+  <div style="display:grid; gap:1rem; grid-template-columns:1fr 1fr; margin-bottom:1rem;">
+    <div>
+      <div style="font-size:.75rem; color:var(--muted); text-transform:uppercase; font-weight:700; margin-bottom:.3rem;">Evento</div>
+      <div style="font-size:1rem; font-weight:700;">{{ reserva.tipo_evento }}</div>
+      <div style="font-size:.85rem; color:var(--muted);">{{ reserva.finalidad or '' }}</div>
+    </div>
+    <div>
+      <div style="font-size:.75rem; color:var(--muted); text-transform:uppercase; font-weight:700; margin-bottom:.3rem;">Fecha y hora</div>
+      <div style="font-size:1rem; font-weight:700;">{{ reserva.fecha.strftime('%d/%m/%Y') }}</div>
+      <div style="font-size:.85rem; color:var(--muted);">{{ reserva.hora_inicio.strftime('%H:%M') }} – {{ reserva.hora_fin.strftime('%H:%M') }}</div>
+    </div>
+    <div>
+      <div style="font-size:.75rem; color:var(--muted); text-transform:uppercase; font-weight:700; margin-bottom:.3rem;">Espacio</div>
+      <div style="font-weight:700;">{% for e in reserva.espacios %}{{ e.nombre }} ({{ e.capacidad }} personas){% endfor %}</div>
+    </div>
+    <div>
+      <div style="font-size:.75rem; color:var(--muted); text-transform:uppercase; font-weight:700; margin-bottom:.3rem;">Personas</div>
+      <div style="font-weight:700;">{{ reserva.cant_personas }}</div>
+    </div>
+    {% if reserva.indumentaria %}
+    <div>
+      <div style="font-size:.75rem; color:var(--muted); text-transform:uppercase; font-weight:700; margin-bottom:.3rem;">Indumentaria</div>
+      <div>{{ reserva.indumentaria }}</div>
+    </div>
+    {% endif %}
+    {% if reserva.servicios_adicionales %}
+    <div>
+      <div style="font-size:.75rem; color:var(--muted); text-transform:uppercase; font-weight:700; margin-bottom:.3rem;">Servicios adicionales</div>
+      <div>{{ reserva.servicios_adicionales }}</div>
+    </div>
+    {% endif %}
+  </div>
+
+  {% if reserva.personas_externas %}
+  <hr>
+  <div class="card-title" style="margin-top:1rem;">👥 Personas externas ({{ reserva.personas_externas | length }})</div>
+  <table>
+    <thead><tr><th>Nombre</th><th>Cédula</th><th>Fecha ingreso</th><th>Fecha salida</th></tr></thead>
+    <tbody>
+      {% for p in reserva.personas_externas %}
+      <tr>
+        <td>{{ p.nombre }}</td>
+        <td>{{ p.cedula }}</td>
+        <td>{{ p.fecha_ingreso.strftime('%d/%m/%Y') if p.fecha_ingreso else '—' }}</td>
+        <td>{{ p.fecha_salida.strftime('%d/%m/%Y') if p.fecha_salida else '—' }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+</div>
+{% else %}
+<div class="card" style="text-align:center; padding:3rem 1rem;">
+  <div style="font-size:3rem; margin-bottom:1rem;">📭</div>
+  <h3 style="color:var(--navy); font-family:'Nunito',sans-serif; margin-bottom:.5rem;">Sin reservas asignadas</h3>
+  <p style="color:var(--muted); font-size:.9rem;">No tienes ninguna reserva asignada en este momento.<br>El administrador te notificará cuando se te asigne una.</p>
+</div>
+{% endif %}
+{% endblock %}
