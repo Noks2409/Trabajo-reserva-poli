@@ -19,6 +19,8 @@
         <option value="docente"        {% if filtro_rol=='docente' %}selected{% endif %}>Docente</option>
         <option value="administrativo" {% if filtro_rol=='administrativo' %}selected{% endif %}>Administrativo</option>
         <option value="externa"        {% if filtro_rol=='externa' %}selected{% endif %}>Persona Externa</option>
+        <option value="institucional"  {% if filtro_rol=='institucional' %}selected{% endif %}>Institucional</option>
+        <option value="logistica"      {% if filtro_rol=='logistica' %}selected{% endif %}>Personal de logistica</option>
       </select>
     </div>
     <button type="submit" class="btn btn-primary">Filtrar</button>
@@ -63,6 +65,7 @@
           {% if u.rol == 'docente' %}{{ u.cod_docente or '' }} · {{ u.departamento or '' }}
           {% elif u.rol == 'administrativo' %}{{ u.dependencia or '' }}
           {% elif u.rol == 'externa' %}{{ u.empresa or '' }} · {{ u.telefono or '' }}
+          {% elif u.rol == 'logistica' %}Personal de logistica
           {% else %}—{% endif %}</td>
         <td style="display:flex; gap:.4rem; flex-wrap:wrap;">
           <a href="{{ url_for('admin_editar_rol', uid=u.id) }}" class="btn btn-secondary btn-sm">✏️ Rol</a>

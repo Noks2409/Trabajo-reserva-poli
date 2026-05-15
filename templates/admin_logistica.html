@@ -26,6 +26,7 @@
           {% endif %}
         </td>
         <td>
+          <a href="{{ url_for('admin_logistica_editar', uid=p.id) }}" class="btn btn-secondary btn-sm">Editar</a>
           {% if p.activo %}
           <form method="POST" action="{{ url_for('admin_logistica_desactivar', uid=p.id) }}" style="display:inline;" onsubmit="return confirm('¿Desactivar a {{ p.nombre }}?')">
             <button type="submit" class="btn btn-danger btn-sm">🔒 Desactivar</button>

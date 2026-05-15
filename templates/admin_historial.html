@@ -74,6 +74,9 @@
         <td>
           <div style="display:flex; gap:.3rem; flex-wrap:wrap;">
             <a href="{{ url_for('ver_reserva', rid=r.id) }}" class="btn btn-secondary btn-sm">Ver</a>
+            {% if r.estado in ['aprobada', 'aprobado', 'aceptada', 'aceptado', 'confirmada', 'confirmado'] %}
+              <a href="{{ url_for('admin_asignar_logistica', rid=r.id) }}" class="btn btn-secondary btn-sm">Logistica</a>
+            {% endif %}
             {% if not ya_finalizo and r.estado in ['pendiente', 'aprobada'] %}
               <a href="{{ url_for('admin_modificar_reserva', rid=r.id) }}" class="btn btn-secondary btn-sm">✏️ Editar</a>
               <form method="POST" action="{{ url_for('admin_eliminar_reserva', rid=r.id) }}"
