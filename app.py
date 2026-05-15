@@ -226,6 +226,10 @@ def enviar_correo_recuperacion(correo, nombre, token):
 
 db = DBSession()
 
+@app.teardown_appcontext
+def shutdown_session(exception=None):
+    DBSession.remove()
+
 @app.after_request
 def agregar_headers_no_cache(response):
     """Evita que el navegador guarde páginas en caché."""
@@ -992,6 +996,9 @@ def reserva_nueva():
                     return redirect(url_for("mis_reservas"))
         except (ValueError, TypeError) as ex:
             flash(f"Datos inválidos. Revisa el formulario.", "danger")
+        except Exception as ex:
+            db.rollback()
+            flash(f"Error al procesar la reserva. Intenta de nuevo.", "danger")
 
     return render_template("reserva_nueva.html", usuario=u, espacios=espacios)
 

@@ -10,7 +10,7 @@ import os
 from sqlalchemy import (
     create_engine, Column, Integer, String, Date, Time, ForeignKey, Table, Numeric, Boolean
 )
-from sqlalchemy.orm import declarative_base, relationship, sessionmaker
+from sqlalchemy.orm import declarative_base, relationship, sessionmaker, scoped_session
 from datetime import date, time
 
 # ─────────────────────────────────────────────
@@ -29,7 +29,7 @@ if DATABASE_URL.startswith("postgres://"):
 engine = create_engine(DATABASE_URL, echo=False)
 
 # Fábrica de sesiones
-Session = sessionmaker(bind=engine)
+Session = scoped_session(sessionmaker(bind=engine))
 
 
 # ─────────────────────────────────────────────
