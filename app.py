@@ -224,6 +224,8 @@ def enviar_correo_recuperacion(correo, nombre, token):
         print(f"Error enviando correo de recuperación: {e}")
         return False
 
+crear_base_de_datos()
+
 db = DBSession()
 
 @app.teardown_appcontext
