@@ -58,14 +58,14 @@
       <tr><td style="color:var(--muted);font-size:.8rem;width:40%;padding:.5rem 0;">Nombre</td><td><strong>{{ reserva.logistica.nombre }}</strong></td></tr>
       <tr><td style="color:var(--muted);font-size:.8rem;padding:.5rem 0;">Correo</td><td>{{ reserva.logistica.correo }}</td></tr>
     </tbody></table>
-    {% if usuario.rol == 'admin' and reserva.estado in ['aprobada', 'aprobado', 'aceptada', 'aceptado', 'confirmada', 'confirmado'] %}
+    {% if usuario.rol == 'admin' and false %}
     <div style="margin-top:.75rem;">
       <a href="{{ url_for('admin_asignar_logistica', rid=reserva.id) }}" class="btn btn-secondary btn-sm">✏️ Cambiar asignación</a>
     </div>
     {% endif %}
     {% else %}
     <p style="color:var(--muted);font-size:.875rem;">No hay personal de logística asignado.</p>
-    {% if usuario.rol == 'admin' and reserva.estado in ['aprobada', 'aprobado', 'aceptada', 'aceptado', 'confirmada', 'confirmado'] %}
+    {% if usuario.rol == 'admin' and reserva.estado == 'aprobada' and false %}
     <a href="{{ url_for('admin_asignar_logistica', rid=reserva.id) }}" class="btn btn-primary btn-sm" style="margin-top:.5rem;">+ Asignar logística</a>
     {% endif %}
     {% endif %}
@@ -127,6 +127,6 @@
 {% endif %}
 
 <div style="margin-top:1.5rem;">
-  <a href="{% if usuario.rol == 'admin' %}{{ url_for('admin_historial') }}{% elif usuario.rol == 'logistica' %}{{ url_for('logistica_panel') }}{% else %}{{ url_for('mis_reservas') }}{% endif %}" class="btn btn-secondary">← Volver</a>
+  <a href="{{ url_for('mis_reservas') if usuario.rol != 'admin' else url_for('admin_historial') }}" class="btn btn-secondary">← Volver</a>
 </div>
 {% endblock %}

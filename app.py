@@ -11,7 +11,7 @@ import bcrypt
 import traceback
 from database import (crear_base_de_datos, Session as DBSession, Usuario, Admin,
                        Docente, Administrativo, PersonaExterna, CONFLICTOS,
-                       PersonaExternaReserva, PersonalLogistica)
+                       PersonaExternaReserva)
 from datetime import date, timedelta, datetime, time as dtime
 from itsdangerous import URLSafeTimedSerializer
 import os
@@ -28,20 +28,9 @@ app.config["MAIL_USERNAME"] = "reservas.poligranco@gmail.com"
 app.config["MAIL_PASSWORD"] = "hzro gypt dspm sbvc"
 app.config["MAIL_DEFAULT_SENDER"] = ("Sistema de Reservas — Poli", "reservas.poligranco@gmail.com")
 
-class Reserva(db.Model):
-    __tablename__ = "reserva"
-
-    id = db.Column(db.Integer, primary_key=True)
-
-    # otros campos...
-
-    logistica_id = db.Column(
-        db.Integer,
-        db.ForeignKey("logistica.id")
-    )
 mail = Mail(app)
 serializer = URLSafeTimedSerializer(app.secret_key)
-logistica = db.relationship("Logistica")
+
 @app.after_request
 def add_header(response):
     response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
@@ -263,8 +252,6 @@ crear_base_de_datos()
 
 db = DBSession()
 
-ESTADOS_APROBADOS_LOGISTICA = {"aprobada", "aprobado", "aceptada", "aceptado", "confirmada", "confirmado"}
-
 @app.teardown_appcontext
 def shutdown_session(exception=None):
     DBSession.remove()
@@ -349,23 +336,6 @@ def requiere_admin(f):
 
 
 # ─── Rutas públicas ────────────────────────────────────────────────────────
-
-@app.before_request
-def limitar_personal_logistica():
-    """El personal de logistica solo puede entrar a su panel asignado."""
-    endpoint = request.endpoint
-    if not endpoint or endpoint in {"static", "index", "login", "logout", "logistica_panel", "ver_reserva"}:
-        return None
-    u = usuario_logueado()
-    if u and u.rol == "logistica":
-        flash("El personal de logistica solo puede consultar sus reservas asignadas.", "warning")
-        return redirect(url_for("logistica_panel"))
-    return None
-
-
-def reserva_aprobada_para_logistica(reserva):
-    return bool(reserva and (reserva.estado or "").lower() in ESTADOS_APROBADOS_LOGISTICA)
-
 
 @app.route("/")
 def index():
@@ -465,8 +435,6 @@ def registro():
 @requiere_login
 def dashboard():
     u = usuario_logueado()
-    if u.rol == "logistica":
-        return redirect(url_for("logistica_panel"))
     # Datos para admin
     total_usuarios   = db.query(Usuario).count()
     total_pendientes = db.query(Reserva).filter_by(estado="pendiente").count() if u.rol == "admin" else 0
@@ -490,26 +458,6 @@ def dashboard():
                            mis_pendientes=mis_pendientes,
                            mis_aprobadas=mis_aprobadas,
                            mis_total=mis_total)
-
-
-@app.route("/logistica")
-@requiere_login
-def logistica_panel():
-    u = usuario_logueado()
-    if u.rol != "logistica":
-        flash("No tienes permiso para acceder a esa pagina.", "danger")
-        return redirect(url_for("dashboard"))
-
-    reservas = (
-        db.query(Reserva)
-        .filter(
-            Reserva.logistica_id == u.id,
-            Reserva.estado.in_(list(ESTADOS_APROBADOS_LOGISTICA)),
-        )
-        .order_by(Reserva.fecha.asc(), Reserva.hora_inicio.asc())
-        .all()
-    )
-    return render_template("logistica_panel.html", usuario=u, reservas=reservas)
 
 
 @app.route("/perfil")
@@ -595,119 +543,6 @@ def admin_usuarios():
                            filtro_rol=rol, filtro_nombre=nombre)
 
 
-@app.route("/admin/logistica")
-@requiere_login
-@requiere_admin
-def admin_logistica():
-    u = usuario_logueado()
-    personal = db.query(Usuario).filter_by(rol="logistica").order_by(Usuario.nombre.asc()).all()
-    return render_template("admin_logistica.html", usuario=u, personal=personal)
-
-
-@app.route("/admin/logistica/nuevo", methods=["GET", "POST"])
-@requiere_login
-@requiere_admin
-def admin_logistica_nuevo():
-    u = usuario_logueado()
-    if request.method == "POST":
-        nombre = request.form.get("nombre", "").strip()
-        correo = request.form.get("correo", "").strip()
-        contrasena = request.form.get("contrasena", "").strip()
-
-        if not nombre or not correo or not contrasena:
-            flash("Todos los campos son obligatorios.", "danger")
-        elif len(contrasena) < 6:
-            flash("La contraseña debe tener al menos 6 caracteres.", "danger")
-        elif db.query(Usuario).filter_by(correo=correo).first():
-            flash("Ese correo ya esta registrado.", "danger")
-        else:
-            try:
-                hash_pw = bcrypt.hashpw(contrasena.encode(), bcrypt.gensalt()).decode()
-                personal = PersonalLogistica(nombre=nombre, correo=correo, contrasena=hash_pw)
-                db.add(personal)
-                db.commit()
-                flash("Cuenta de logistica creada correctamente.", "success")
-                return redirect(url_for("admin_logistica"))
-            except Exception as e:
-                db.rollback()
-                flash(f"Error al crear la cuenta: {e}", "danger")
-    return render_template("admin_logistica_nuevo.html", usuario=u)
-
-
-@app.route("/admin/logistica/<int:uid>/editar", methods=["GET", "POST"])
-@requiere_login
-@requiere_admin
-def admin_logistica_editar(uid):
-    u = usuario_logueado()
-    personal = db.get(Usuario, uid)
-    if not personal or personal.rol != "logistica":
-        flash("Personal de logistica no encontrado.", "danger")
-        return redirect(url_for("admin_logistica"))
-
-    if request.method == "POST":
-        nombre = request.form.get("nombre", "").strip()
-        correo = request.form.get("correo", "").strip()
-        contrasena = request.form.get("contrasena", "").strip()
-        otro = db.query(Usuario).filter(Usuario.correo == correo, Usuario.id != personal.id).first()
-
-        if not nombre or not correo:
-            flash("Nombre y correo son obligatorios.", "danger")
-        elif otro:
-            flash("Ese correo ya esta registrado por otro usuario.", "danger")
-        elif contrasena and len(contrasena) < 6:
-            flash("La contraseña debe tener al menos 6 caracteres.", "danger")
-        else:
-            try:
-                personal.nombre = nombre
-                personal.correo = correo
-                if contrasena:
-                    personal.contrasena = bcrypt.hashpw(contrasena.encode(), bcrypt.gensalt()).decode()
-                db.commit()
-                flash("Personal de logistica actualizado correctamente.", "success")
-                return redirect(url_for("admin_logistica"))
-            except Exception as e:
-                db.rollback()
-                flash(f"Error al actualizar: {e}", "danger")
-
-    return render_template("admin_logistica_editar.html", usuario=u, personal=personal)
-
-
-@app.route("/admin/logistica/<int:uid>/desactivar", methods=["POST"])
-@requiere_login
-@requiere_admin
-def admin_logistica_desactivar(uid):
-    personal = db.get(Usuario, uid)
-    if not personal or personal.rol != "logistica":
-        flash("Personal de logistica no encontrado.", "danger")
-        return redirect(url_for("admin_logistica"))
-    try:
-        personal.activo = False
-        db.commit()
-        flash("Cuenta de logistica desactivada correctamente.", "success")
-    except Exception as e:
-        db.rollback()
-        flash(f"Error al desactivar: {e}", "danger")
-    return redirect(url_for("admin_logistica"))
-
-
-@app.route("/admin/logistica/<int:uid>/activar", methods=["POST"])
-@requiere_login
-@requiere_admin
-def admin_logistica_activar(uid):
-    personal = db.get(Usuario, uid)
-    if not personal or personal.rol != "logistica":
-        flash("Personal de logistica no encontrado.", "danger")
-        return redirect(url_for("admin_logistica"))
-    try:
-        personal.activo = True
-        db.commit()
-        flash("Cuenta de logistica activada correctamente.", "success")
-    except Exception as e:
-        db.rollback()
-        flash(f"Error al activar: {e}", "danger")
-    return redirect(url_for("admin_logistica"))
-
-
 @app.route("/admin/usuarios/<int:uid>/editar-rol", methods=["GET", "POST"])
 @requiere_login
 @requiere_admin
@@ -725,7 +560,7 @@ def admin_editar_rol(uid):
 
     if request.method == "POST":
         nuevo_rol = request.form.get("rol", "").strip()
-        roles_validos = ["docente", "administrativo", "externa", "institucional", "admin", "logistica"]
+        roles_validos = ["docente", "administrativo", "externa", "admin"]
         if nuevo_rol not in roles_validos:
             flash("Rol inválido.", "danger")
         else:
@@ -1261,11 +1096,7 @@ def ver_reserva(rid):
         flash("Reserva no encontrada.", "danger")
         return redirect(url_for("admin_historial") if u.rol == "admin" else url_for("mis_reservas"))
 
-    if u.rol == "logistica":
-        if reserva.logistica_id != u.id:
-            flash("No tienes permiso para ver esta reserva.", "danger")
-            return redirect(url_for("logistica_panel"))
-    elif u.rol != "admin" and reserva.usuario_id != u.id:
+    if u.rol != "admin" and reserva.usuario_id != u.id:
         flash("No tienes permiso para ver esta reserva.", "danger")
         return redirect(url_for("mis_reservas"))
 
@@ -1373,49 +1204,6 @@ def admin_aprobar_reserva(rid):
 
     # GET: mostrar detalles antes de confirmar (paso 3 del diagrama)
     return render_template("admin_aprobar_reserva.html", usuario=u, reserva=reserva)
-
-
-@app.route("/admin/reservas/<int:rid>/asignar-logistica", methods=["GET", "POST"])
-@requiere_login
-@requiere_admin
-def admin_asignar_logistica(rid):
-    u = usuario_logueado()
-    reserva = db.get(Reserva, rid)
-
-    if not reserva:
-        flash("Reserva no encontrada.", "danger")
-        return redirect(url_for("admin_historial"))
-
-    if not reserva_aprobada_para_logistica(reserva):
-        flash("Solo puedes asignar logistica a reservas aprobadas o aceptadas.", "warning")
-        return redirect(url_for("admin_historial"))
-
-    personal = (
-        db.query(Usuario)
-        .filter_by(rol="logistica", activo=True)
-        .order_by(Usuario.nombre.asc())
-        .all()
-    )
-
-    if request.method == "POST":
-        logistica_id = request.form.get("logistica_id", "").strip()
-        try:
-            if not logistica_id:
-                reserva.logistica_id = None
-            else:
-                asignado = db.get(Usuario, int(logistica_id))
-                if not asignado or asignado.rol != "logistica" or not asignado.activo:
-                    flash("Debes seleccionar personal de logistica activo.", "danger")
-                    return render_template("admin_asignar_logistica.html", usuario=u, reserva=reserva, personal=personal)
-                reserva.logistica_id = asignado.id
-            db.commit()
-            flash("Asignacion de logistica guardada correctamente.", "success")
-            return redirect(url_for("admin_historial"))
-        except Exception as e:
-            db.rollback()
-            flash(f"Error al guardar la asignacion: {e}", "danger")
-
-    return render_template("admin_asignar_logistica.html", usuario=u, reserva=reserva, personal=personal)
 
 
 @app.route("/admin/reservas/<int:rid>/rechazar", methods=["GET", "POST"])
@@ -1695,7 +1483,7 @@ def admin_crear_reserva():
     from database import Reserva, Espacio
     u        = usuario_logueado()
     espacios = db.query(Espacio).all()
-    usuarios_lista = db.query(Usuario).filter(Usuario.rol != "logistica").all()
+    usuarios_lista = db.query(Usuario).all()
 
     if request.method == "POST":
         try:
