@@ -9,7 +9,12 @@ from datetime import date
 
 app = Flask(__name__)
 app.secret_key = "clave_secreta_reservas_2025"   # Cambia esto en producción
-
+@app.after_request
+def add_header(response):
+    response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+    response.headers["Pragma"] = "no-cache"
+    response.headers["Expires"] = "0"
+    return response
 db = DBSession()
 
 # ─── Helpers ───────────────────────────────────────────────────────────────
