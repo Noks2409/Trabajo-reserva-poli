@@ -62,7 +62,10 @@ def enviar_correo_reserva_creada(usuario, reserva, espacio):
           </div>
         </div>
         """
-        mail.send(msg)
+        try:
+            mail.send(msg)
+        except:
+            pass
     except Exception as e:
         print(f"Error enviando correo de reserva creada: {e}")
 
@@ -99,7 +102,10 @@ def enviar_correo_reserva_aprobada(usuario, reserva, espacio):
           </div>
         </div>
         """
-        mail.send(msg)
+        try:
+            mail.send(msg)
+        except:
+            pass
     except Exception as e:
         print(f"Error enviando correo de reserva aprobada: {e}")
 
@@ -146,7 +152,10 @@ def enviar_correo_reserva_rechazada(usuario, reserva, espacio, justificacion=Non
           </div>
         </div>
         """
-        mail.send(msg)
+        try:
+            mail.send(msg)
+        except:
+            pass
     except Exception as e:
         print(f"Error enviando correo de reserva rechazada: {e}")
 
@@ -184,7 +193,10 @@ def enviar_correo_reserva_cancelada(usuario, reserva, espacio):
           </div>
         </div>
         """
-        mail.send(msg)
+        try:
+            mail.send(msg)
+        except:
+            pass
     except Exception as e:
         print(f"Error enviando correo de cancelación: {e}")
 
@@ -218,7 +230,10 @@ def enviar_correo_recuperacion(correo, nombre, token):
           </div>
         </div>
         """
-        mail.send(msg)
+        try:
+            mail.send(msg)
+        except:
+            pass
         return True
     except Exception as e:
         print(f"Error enviando correo de recuperación: {e}")
