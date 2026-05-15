@@ -147,7 +147,7 @@
 
     <!-- ── Time Picker visual ─────────────────────────────── -->
     <div class="form-group">
-      <label>Horario (inicio y fin)</label>
+      <label>Horario (inicio y fin) <span style="color:var(--danger); font-size:.78rem; font-weight:700; text-transform:none;">— máximo 4 horas</span></label>
 
       <div class="tp-wrap" id="tpWrap">
         <div class="tp-phase" id="tpPhase">Primero selecciona un <strong>espacio</strong> y una <strong>fecha válida</strong></div>
@@ -199,12 +199,170 @@
     </div>
 
     <hr>
+
+    <!-- ── Personas externas ─────────────────────────────── -->
+    <div class="form-group" style="margin-top:1.25rem;">
+      <label>¿La reserva incluirá personas externas?</label>
+      <div style="display:flex; gap:.75rem; margin-top:.5rem;">
+        <label style="display:flex; align-items:center; gap:.5rem; cursor:pointer; font-size:.9rem;
+                       text-transform:none; letter-spacing:0; color:var(--text); font-weight:600;">
+          <input type="radio" name="tiene_externos" value="no" id="extNo" checked
+                 style="width:auto; margin:0;" onchange="toggleExternos(false)"/>
+          No
+        </label>
+        <label style="display:flex; align-items:center; gap:.5rem; cursor:pointer; font-size:.9rem;
+                       text-transform:none; letter-spacing:0; color:var(--text); font-weight:600;">
+          <input type="radio" name="tiene_externos" value="si" id="extSi"
+                 style="width:auto; margin:0;" onchange="toggleExternos(true)"/>
+          Sí
+        </label>
+      </div>
+    </div>
+
+    <!-- Panel de personas externas (visible solo si "Sí") -->
+    <div id="panelExternos" style="display:none; margin-top:.75rem;">
+      <div class="card" style="background:#f8fafd; border:1.5px solid var(--cyan); border-radius:10px; padding:1.1rem 1.25rem;">
+        <div class="card-title" style="margin-bottom:.75rem;">👥 Personas externas</div>
+
+        <!-- Info del responsable (automático) -->
+        <div style="background:#eaf7ee; border:1px solid #86efac; border-radius:8px; padding:.6rem .9rem; font-size:.83rem; color:#1a6630; margin-bottom:1rem;">
+          👤 <strong>Responsable:</strong> {{ usuario.nombre }} — asignado automáticamente
+        </div>
+
+        <!-- Tabs: Manual / Excel -->
+        <div style="display:flex; border-bottom:2px solid var(--border); margin-bottom:1rem;">
+          <button type="button" id="tabManual" onclick="setTab('manual')"
+            style="padding:.5rem 1.1rem; border:none; border-bottom:3px solid var(--cyan); background:none;
+                   font-family:inherit; font-weight:700; font-size:.85rem; color:var(--cyan-dark); cursor:pointer; margin-bottom:-2px;">
+            ✍️ Registro manual
+          </button>
+          <button type="button" id="tabExcel" onclick="setTab('excel')"
+            style="padding:.5rem 1.1rem; border:none; border-bottom:3px solid transparent; background:none;
+                   font-family:inherit; font-weight:700; font-size:.85rem; color:var(--muted); cursor:pointer; margin-bottom:-2px;">
+            📊 Subir Excel
+          </button>
+        </div>
+
+        <!-- PANEL MANUAL -->
+        <div id="panelManual">
+          <div id="listaPersonas">
+            <!-- Las filas se insertan aquí dinámicamente -->
+          </div>
+          <button type="button" onclick="agregarPersona()"
+            style="margin-top:.6rem; background:none; border:1.5px dashed var(--cyan); color:var(--cyan-dark);
+                   padding:.45rem 1rem; border-radius:8px; font-size:.83rem; font-weight:700;
+                   cursor:pointer; font-family:inherit; transition:all .15s;">
+            ＋ Agregar persona
+          </button>
+        </div>
+
+        <!-- PANEL EXCEL -->
+        <div id="panelExcel" style="display:none;">
+          <p style="font-size:.83rem; color:var(--muted); margin-bottom:.75rem;">
+            El archivo debe tener 4 columnas en este orden exacto:
+            <strong>nombre, cedula, fecha_ingreso, fecha_salida</strong>.
+            La primera fila se usa como encabezado.
+          </p>
+          <a href="#" onclick="descargarPlantilla(); return false;"
+             style="font-size:.78rem; color:var(--cyan-dark); text-decoration:underline;">
+            ⬇️ Descargar plantilla de ejemplo
+          </a>
+          <div class="form-group" style="margin-top:.75rem;">
+            <label>Archivo Excel (.xlsx / .xls)</label>
+            <input type="file" id="archivoExcel" accept=".xlsx,.xls"
+                   style="background:var(--white); border:1.5px solid var(--border); color:var(--text);
+                          padding:.5rem .75rem; border-radius:8px; font-family:inherit; font-size:.87rem;"/>
+          </div>
+          <p style="font-size:.77rem; color:#e6a817; margin-top:.3rem;">
+            ⚠️ El archivo Excel se sube <strong>después</strong> de crear la reserva,
+            en la pantalla "Mis Reservas".
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <hr>
     <div style="display:flex; gap:.75rem;">
       <button type="submit" class="btn btn-primary" id="btnEnviar">📋 Enviar solicitud</button>
       <a href="{{ url_for('mis_reservas') }}" class="btn btn-secondary">Cancelar</a>
     </div>
   </form>
 </div>
+
+<script>
+/* ── Personas externas ──────────────────────────────────────────── */
+function toggleExternos(mostrar) {
+  document.getElementById('panelExternos').style.display = mostrar ? 'block' : 'none';
+  if (mostrar && document.getElementById('listaPersonas').children.length === 0) {
+    agregarPersona(); // primera fila automática
+  }
+}
+
+let contadorPersonas = 0;
+
+function agregarPersona() {
+  contadorPersonas++;
+  const id = contadorPersonas;
+  const div = document.createElement('div');
+  div.id = 'persona-' + id;
+  div.style.cssText = 'display:grid; grid-template-columns:1fr 1fr 1fr 1fr auto; gap:.5rem; margin-bottom:.55rem; align-items:start;';
+  div.innerHTML = `
+    <div>
+      ${id === 1 ? '<label style="font-size:.72rem;color:var(--muted);text-transform:uppercase;display:block;margin-bottom:.25rem;font-weight:700;">Nombre *</label>' : ''}
+      <input type="text" name="ext_nombre" placeholder="Nombre completo"
+             style="background:white;border:1.5px solid var(--border);color:var(--text);padding:.5rem .7rem;border-radius:7px;font-family:inherit;font-size:.85rem;width:100%;"/>
+    </div>
+    <div>
+      ${id === 1 ? '<label style="font-size:.72rem;color:var(--muted);text-transform:uppercase;display:block;margin-bottom:.25rem;font-weight:700;">Cédula *</label>' : ''}
+      <input type="text" name="ext_cedula" placeholder="Número de cédula"
+             style="background:white;border:1.5px solid var(--border);color:var(--text);padding:.5rem .7rem;border-radius:7px;font-family:inherit;font-size:.85rem;width:100%;"/>
+    </div>
+    <div>
+      ${id === 1 ? '<label style="font-size:.72rem;color:var(--muted);text-transform:uppercase;display:block;margin-bottom:.25rem;font-weight:700;">Fecha ingreso</label>' : ''}
+      <input type="date" name="ext_fecha_ingreso"
+             style="background:white;border:1.5px solid var(--border);color:var(--text);padding:.5rem .7rem;border-radius:7px;font-family:inherit;font-size:.85rem;width:100%;"/>
+    </div>
+    <div>
+      ${id === 1 ? '<label style="font-size:.72rem;color:var(--muted);text-transform:uppercase;display:block;margin-bottom:.25rem;font-weight:700;">Fecha salida</label>' : ''}
+      <input type="date" name="ext_fecha_salida"
+             style="background:white;border:1.5px solid var(--border);color:var(--text);padding:.5rem .7rem;border-radius:7px;font-family:inherit;font-size:.85rem;width:100%;"/>
+    </div>
+    <div style="padding-top:${id === 1 ? '1.4rem' : '0'};">
+      <button type="button" onclick="quitarPersona(${id})"
+              style="background:#fdecea;border:1.5px solid #fca5a5;color:#b91c1c;border-radius:7px;
+                     padding:.4rem .65rem;font-size:.85rem;cursor:pointer;font-family:inherit;">✕</button>
+    </div>
+  `;
+  document.getElementById('listaPersonas').appendChild(div);
+}
+
+function quitarPersona(id) {
+  const el = document.getElementById('persona-' + id);
+  if (el) el.remove();
+}
+
+/* ── Tabs ──────────────────────────────────────────────────────── */
+function setTab(tab) {
+  const isManual = tab === 'manual';
+  document.getElementById('panelManual').style.display = isManual ? 'block' : 'none';
+  document.getElementById('panelExcel').style.display  = isManual ? 'none'  : 'block';
+  document.getElementById('tabManual').style.borderBottomColor = isManual ? 'var(--cyan)' : 'transparent';
+  document.getElementById('tabManual').style.color = isManual ? 'var(--cyan-dark)' : 'var(--muted)';
+  document.getElementById('tabExcel').style.borderBottomColor  = isManual ? 'transparent' : 'var(--cyan)';
+  document.getElementById('tabExcel').style.color  = isManual ? 'var(--muted)' : 'var(--cyan-dark)';
+}
+
+/* ── Plantilla Excel de ejemplo ────────────────────────────────── */
+function descargarPlantilla() {
+  const csv = 'nombre,cedula,fecha_ingreso,fecha_salida\nJuan Pérez,12345678,2025-06-01,2025-06-01\n';
+  const blob = new Blob([csv], {type:'text/csv'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'plantilla_personas_externas.csv';
+  a.click();
+}
+</script>
+
 
 <script>
 // ── Constantes ────────────────────────────────────────────

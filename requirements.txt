@@ -5,3 +5,4 @@ bcrypt
 itsdangerous
 gunicorn
 psycopg2-binary
+openpyxl

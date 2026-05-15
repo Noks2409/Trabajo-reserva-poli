@@ -6,7 +6,9 @@ Módulo de autenticación + gestión de perfil + frontend por rol
 from flask import Flask, render_template, request, redirect, url_for, session, flash, make_response, jsonify
 from flask_mail import Mail, Message
 import bcrypt
-from database import crear_base_de_datos, Session as DBSession, Usuario, Admin, Docente, Administrativo, PersonaExterna, CONFLICTOS
+from database import (crear_base_de_datos, Session as DBSession, Usuario, Admin,
+                       Docente, Administrativo, PersonaExterna, CONFLICTOS,
+                       PersonaExternaReserva)
 from datetime import date, timedelta, datetime, time as dtime
 from itsdangerous import URLSafeTimedSerializer
 
@@ -263,6 +265,10 @@ def _cargar_espacios_predefinidos():
 
 # ─── Helpers ───────────────────────────────────────────────────────────────
 
+def reserva_ha_finalizado(reserva):
+    """Retorna True si la fecha+hora_fin de la reserva ya pasó completamente."""
+    return datetime.now() > datetime.combine(reserva.fecha, reserva.hora_fin)
+
 def usuario_logueado():
     """Retorna el objeto Usuario si hay sesión activa, o None."""
     uid = session.get("usuario_id")
@@ -325,6 +331,10 @@ def login():
             except Exception:
                 return plain == stored
         if usuario and verificar_pw(contrasena, usuario.contrasena):
+            # Verificar si la cuenta está activa
+            if not usuario.activo:
+                flash("Tu cuenta ha sido desactivada. Contacta al administrador.", "danger")
+                return render_template("login.html")
             session.permanent = True
             session["usuario_id"] = usuario.id
             flash(f"Bienvenido, {usuario.nombre}.", "success")
@@ -537,11 +547,11 @@ def admin_editar_rol(uid):
     return render_template("admin_editar_rol.html", usuario=u, objetivo=objetivo)
 
 
-@app.route("/admin/usuarios/<int:uid>/eliminar", methods=["POST"])
+@app.route("/admin/usuarios/<int:uid>/desactivar", methods=["POST"])
 @requiere_login
 @requiere_admin
-def admin_eliminar_usuario(uid):
-    u       = usuario_logueado()
+def admin_desactivar_usuario(uid):
+    u        = usuario_logueado()
     objetivo = db.get(Usuario, uid)
 
     if not objetivo:
@@ -549,17 +559,66 @@ def admin_eliminar_usuario(uid):
         return redirect(url_for("admin_usuarios"))
 
     if objetivo.id == u.id:
-        flash("No puedes eliminar tu propia cuenta.", "warning")
+        flash("No puedes desactivar tu propia cuenta.", "warning")
         return redirect(url_for("admin_usuarios"))
 
     nombre = objetivo.nombre
     try:
-        db.delete(objetivo)
+        objetivo.activo = False
         db.commit()
-        flash(f"Usuario '{nombre}' eliminado correctamente.", "success")
+        flash(f"Usuario '{nombre}' desactivado. Sus datos e historial se conservan.", "success")
     except Exception as e:
         db.rollback()
-        flash(f"Error al eliminar el usuario: {e}", "danger")
+        flash(f"Error al desactivar el usuario: {e}", "danger")
+
+    return redirect(url_for("admin_usuarios"))
+
+
+@app.route("/admin/usuarios/<int:uid>/reactivar", methods=["POST"])
+@requiere_login
+@requiere_admin
+def admin_reactivar_usuario(uid):
+    u        = usuario_logueado()
+    objetivo = db.get(Usuario, uid)
+
+    if not objetivo:
+        flash("Usuario no encontrado.", "danger")
+        return redirect(url_for("admin_usuarios"))
+
+    nombre = objetivo.nombre
+    try:
+        objetivo.activo = True
+        db.commit()
+        flash(f"Usuario '{nombre}' reactivado correctamente.", "success")
+    except Exception as e:
+        db.rollback()
+        flash(f"Error al reactivar el usuario: {e}", "danger")
+
+    return redirect(url_for("admin_usuarios"))
+
+
+@app.route("/admin/usuarios/<int:uid>/strike", methods=["POST"])
+@requiere_login
+@requiere_admin
+def admin_asignar_strike(uid):
+    u        = usuario_logueado()
+    objetivo = db.get(Usuario, uid)
+
+    if not objetivo:
+        flash("Usuario no encontrado.", "danger")
+        return redirect(url_for("admin_usuarios"))
+
+    if objetivo.id == u.id:
+        flash("No puedes asignarte un strike a ti mismo.", "warning")
+        return redirect(url_for("admin_usuarios"))
+
+    try:
+        objetivo.strikes = (objetivo.strikes or 0) + 1
+        db.commit()
+        flash(f"Strike asignado a '{objetivo.nombre}'. Total: {objetivo.strikes} strike(s).", "warning")
+    except Exception as e:
+        db.rollback()
+        flash(f"Error al asignar el strike: {e}", "danger")
 
     return redirect(url_for("admin_usuarios"))
 
@@ -825,7 +884,10 @@ def mis_reservas():
     reservas = db.query(Reserva).filter_by(usuario_id=u.id)\
                  .order_by(Reserva.fecha.desc()).all()
     ahora = datetime.now()
-    return render_template("mis_reservas.html", usuario=u, reservas=reservas, ahora=ahora)
+    # IDs de reservas que ya finalizaron (para ocultar acciones en el template)
+    finalizadas_ids = {r.id for r in reservas if reserva_ha_finalizado(r)}
+    return render_template("mis_reservas.html", usuario=u, reservas=reservas,
+                           ahora=ahora, finalizadas_ids=finalizadas_ids)
 
 
 @app.route("/reservas/nueva", methods=["GET", "POST"])
@@ -838,16 +900,31 @@ def reserva_nueva():
         flash("No hay espacios registrados. Contacta al administrador.", "warning")
         return redirect(url_for("mis_reservas"))
 
+    # Verificar si el usuario tiene reservas pasadas sin calificar (cualquier tipo)
+    reservas_usuario = db.query(Reserva).filter_by(usuario_id=u.id, estado="aprobada").all()
+    pendientes_calificar = [
+        r for r in reservas_usuario
+        if reserva_ha_finalizado(r) and r.calificacion is None
+    ]
+    if pendientes_calificar:
+        flash(
+            f"Tienes {len(pendientes_calificar)} reserva(s) finalizada(s) sin calificar. "
+            "Debes calificarla(s) antes de crear una nueva reserva.",
+            "warning"
+        )
+        return redirect(url_for("historial_reservas"))
+
     if request.method == "POST":
-        tipo_evento   = request.form.get("tipo_evento", "").strip()
-        finalidad     = request.form.get("finalidad", "").strip()
-        indumentaria          = request.form.get("indumentaria", "").strip()
-        servicios_adicionales = request.form.getlist("servicios_adicionales")
-        cant_personas = request.form.get("cant_personas", "").strip()
-        espacio_id    = request.form.get("espacio_id", "").strip()
-        fecha_str     = request.form.get("fecha", "").strip()
-        hi_str        = request.form.get("hora_inicio", "").strip()
-        hf_str        = request.form.get("hora_fin", "").strip()
+        tipo_evento            = request.form.get("tipo_evento", "").strip()
+        finalidad              = request.form.get("finalidad", "").strip()
+        indumentaria           = request.form.get("indumentaria", "").strip()
+        servicios_adicionales  = request.form.getlist("servicios_adicionales")
+        cant_personas          = request.form.get("cant_personas", "").strip()
+        espacio_id             = request.form.get("espacio_id", "").strip()
+        fecha_str              = request.form.get("fecha", "").strip()
+        hi_str                 = request.form.get("hora_inicio", "").strip()
+        hf_str                 = request.form.get("hora_fin", "").strip()
+        tiene_externos         = request.form.get("tiene_externos", "no") == "si"
 
         try:
             fecha       = datetime.strptime(fecha_str, "%Y-%m-%d").date()
@@ -858,10 +935,12 @@ def reserva_nueva():
             if not espacio:
                 flash("Espacio no válido.", "danger")
             else:
-                # Validar restricciones
-                errores = horario_valido(fecha, hora_inicio, hora_fin)
-                if errores:
-                    for e in errores:
+                # Validar máx. 4 horas
+                duracion = datetime.combine(fecha, hora_fin) - datetime.combine(fecha, hora_inicio)
+                if duracion.total_seconds() > 4 * 3600:
+                    flash("Una reserva no puede exceder 4 horas de duración.", "danger")
+                elif horario_valido(fecha, hora_inicio, hora_fin):
+                    for e in horario_valido(fecha, hora_inicio, hora_fin):
                         flash(e, "danger")
                 elif dia_bloqueado(fecha, hora_inicio, hora_fin):
                     flash("Ese horario está bloqueado en la agenda semestral.", "danger")
@@ -880,17 +959,39 @@ def reserva_nueva():
                         fecha                 = fecha,
                         hora_inicio           = hora_inicio,
                         hora_fin              = hora_fin,
-                        estado                = "pendiente"
+                        estado                = "pendiente",
                     )
                     reserva.espacios.append(espacio)
                     db.add(reserva)
                     db.commit()
-                    # Notificar al usuario que su reserva fue recibida y está en revisión
+
+                    # Registrar personas externas si aplica (método manual)
+                    if tiene_externos:
+                        nombres   = request.form.getlist("ext_nombre")
+                        cedulas   = request.form.getlist("ext_cedula")
+                        ingresos  = request.form.getlist("ext_fecha_ingreso")
+                        salidas   = request.form.getlist("ext_fecha_salida")
+                        for nombre, cedula, ing, sal in zip(nombres, cedulas, ingresos, salidas):
+                            nombre  = nombre.strip()
+                            cedula  = cedula.strip()
+                            if not nombre or not cedula:
+                                continue
+                            fi = datetime.strptime(ing, "%Y-%m-%d").date() if ing.strip() else None
+                            fs = datetime.strptime(sal, "%Y-%m-%d").date() if sal.strip() else None
+                            db.add(PersonaExternaReserva(
+                                reserva_id    = reserva.id,
+                                nombre        = nombre,
+                                cedula        = cedula,
+                                fecha_ingreso = fi,
+                                fecha_salida  = fs,
+                            ))
+                        db.commit()
+
                     enviar_correo_reserva_creada(u, reserva, espacio)
                     flash("Reserva solicitada correctamente. Queda pendiente de aprobación.", "success")
                     return redirect(url_for("mis_reservas"))
-        except (ValueError, TypeError):
-            flash("Datos inválidos. Revisa el formulario.", "danger")
+        except (ValueError, TypeError) as ex:
+            flash(f"Datos inválidos. Revisa el formulario.", "danger")
 
     return render_template("reserva_nueva.html", usuario=u, espacios=espacios)
 
@@ -1042,6 +1143,10 @@ def cancelar_reserva(rid):
     if not reserva or reserva.usuario_id != u.id:
         flash("Reserva no encontrada.", "danger")
         return redirect(url_for("mis_reservas"))
+    # Bloquear si la reserva ya finalizó
+    if reserva_ha_finalizado(reserva):
+        flash("No puedes cancelar una reserva que ya finalizó.", "danger")
+        return redirect(url_for("mis_reservas"))
     if reserva.estado not in ["pendiente", "aprobada"]:
         flash("Esta reserva no puede cancelarse.", "warning")
         return redirect(url_for("mis_reservas"))
@@ -1056,12 +1161,10 @@ def cancelar_reserva(rid):
         espacio = reserva.espacios[0] if reserva.espacios else None
         reserva.estado = "cancelada"
         db.commit()
-        # Notificar al usuario que canceló su propia reserva
         if espacio:
             enviar_correo_reserva_cancelada(u, reserva, espacio)
         flash("Reserva cancelada correctamente. Se envió una confirmación a tu correo.", "success")
     except Exception:
-        # Alt 4a: El sistema no logra conectar con la base de datos
         db.rollback()
         flash("Error al conectar con la base de datos. No se realizó la cancelación.", "danger")
     return redirect(url_for("mis_reservas"))
@@ -1076,6 +1179,10 @@ def modificar_reserva(rid):
     reserva = db.get(Reserva, rid)
     if not reserva or reserva.usuario_id != u.id:
         flash("Reserva no encontrada.", "danger")
+        return redirect(url_for("mis_reservas"))
+    # Bloquear si la reserva ya finalizó
+    if reserva_ha_finalizado(reserva):
+        flash("No puedes modificar una reserva que ya finalizó.", "danger")
         return redirect(url_for("mis_reservas"))
     if reserva.estado != "pendiente":
         flash("Solo puedes modificar reservas que estén En revisión.", "warning")
@@ -1104,7 +1211,6 @@ def modificar_reserva(rid):
                 flash("Reserva modificada correctamente. Sigue en revisión.", "success")
                 return redirect(url_for("mis_reservas"))
             except Exception:
-                # Alt 5a: El sistema no logra conectar con la base de datos
                 db.rollback()
                 flash("Error al conectar con la base de datos. No se guardaron los cambios.", "danger")
         except Exception as e:
@@ -1125,6 +1231,10 @@ def admin_modificar_reserva(rid):
     if not reserva:
         flash("Reserva no encontrada.", "danger")
         return redirect(url_for("admin_reservas"))
+    # Bloquear si la reserva ya finalizó
+    if reserva_ha_finalizado(reserva):
+        flash("No se puede modificar una reserva que ya finalizó.", "danger")
+        return redirect(url_for("admin_historial"))
     if reserva.estado not in ["pendiente", "aprobada"]:
         flash("Solo se pueden modificar reservas en revisión o aprobadas.", "warning")
         return redirect(url_for("admin_reservas"))
@@ -1276,6 +1386,14 @@ def admin_crear_reserva():
                 flash("Espacio no encontrado.", "danger")
                 return render_template("admin_crear_reserva.html", usuario=u,
                                        espacios=espacios, usuarios_lista=usuarios_lista)
+
+            # Validar máx. 4 horas
+            from datetime import datetime as _dt
+            duracion = _dt.combine(fecha, hora_fin) - _dt.combine(fecha, hora_inicio)
+            if duracion.total_seconds() > 4 * 3600:
+                flash("Una reserva no puede exceder 4 horas de duración.", "danger")
+                return render_template("admin_crear_reserva.html", usuario=u,
+                                       espacios=espacios, usuarios_lista=usuarios_lista)
             try:
                 reserva = Reserva(
                     usuario_id            = usuario_id,
@@ -1304,7 +1422,104 @@ def admin_crear_reserva():
                            espacios=espacios, usuarios_lista=usuarios_lista)
 
 
-# ── Eliminar reserva desde el panel admin (Sprint 7 - caso 16) ─────────────
+# ── Personas externas — Subida de Excel ────────────────────────────────────
+
+@app.route("/reservas/<int:rid>/personas-externas/excel", methods=["POST"])
+@requiere_login
+def personas_externas_excel(rid):
+    """Carga personas externas desde un archivo Excel (.xlsx / .xls)."""
+    from database import Reserva
+    u = usuario_logueado()
+    reserva = db.get(Reserva, rid)
+
+    if not reserva or reserva.usuario_id != u.id:
+        flash("Reserva no encontrada.", "danger")
+        return redirect(url_for("mis_reservas"))
+
+    archivo = request.files.get("archivo_excel")
+    if not archivo or archivo.filename == "":
+        flash("No se seleccionó ningún archivo.", "danger")
+        return redirect(url_for("mis_reservas"))
+
+    nombre = archivo.filename.lower()
+    if not (nombre.endswith(".xlsx") or nombre.endswith(".xls")):
+        flash("El archivo debe ser formato Excel (.xlsx o .xls).", "danger")
+        return redirect(url_for("mis_reservas"))
+
+    try:
+        import openpyxl
+        from io import BytesIO
+        wb = openpyxl.load_workbook(BytesIO(archivo.read()), data_only=True)
+        ws = wb.active
+
+        # Validar encabezados esperados (fila 1)
+        headers = [str(ws.cell(1, c).value or "").strip().lower() for c in range(1, 5)]
+        expected = ["nombre", "cedula", "fecha_ingreso", "fecha_salida"]
+        if headers[:4] != expected:
+            flash(
+                f"Estructura incorrecta. La primera fila debe contener: {', '.join(expected)}",
+                "danger"
+            )
+            return redirect(url_for("mis_reservas"))
+
+        agregados = 0
+        errores   = []
+        for fila_num, row in enumerate(ws.iter_rows(min_row=2, values_only=True), start=2):
+            nombre_p = str(row[0] or "").strip()
+            cedula_p = str(row[1] or "").strip()
+            ing_raw  = row[2]
+            sal_raw  = row[3]
+
+            if not nombre_p and not cedula_p:
+                continue  # fila vacía — ignorar
+            if not nombre_p or not cedula_p:
+                errores.append(f"Fila {fila_num}: nombre y cédula son obligatorios.")
+                continue
+
+            # Parsear fechas (puede venir como date/datetime o string)
+            def parsear_fecha(val):
+                if val is None:
+                    return None
+                if hasattr(val, 'date'):
+                    return val.date() if hasattr(val, 'hour') else val
+                try:
+                    return datetime.strptime(str(val).strip(), "%Y-%m-%d").date()
+                except ValueError:
+                    try:
+                        return datetime.strptime(str(val).strip(), "%d/%m/%Y").date()
+                    except ValueError:
+                        return None
+
+            fi = parsear_fecha(ing_raw)
+            fs = parsear_fecha(sal_raw)
+
+            db.add(PersonaExternaReserva(
+                reserva_id    = reserva.id,
+                nombre        = nombre_p,
+                cedula        = cedula_p,
+                fecha_ingreso = fi,
+                fecha_salida  = fs,
+            ))
+            agregados += 1
+
+        db.commit()
+
+        if errores:
+            for err in errores:
+                flash(err, "warning")
+        if agregados:
+            flash(f"{agregados} persona(s) externa(s) agregada(s) correctamente.", "success")
+        else:
+            flash("No se encontraron registros válidos en el archivo.", "warning")
+
+    except Exception as e:
+        db.rollback()
+        flash(f"Error al procesar el archivo Excel: {e}", "danger")
+
+    return redirect(url_for("mis_reservas"))
+
+
+# ── Eliminar reserva desde el panel admin ──────────────────────────────────
 
 @app.route("/admin/reservas/<int:rid>/eliminar", methods=["POST"])
 @requiere_login
@@ -1314,6 +1529,10 @@ def admin_eliminar_reserva(rid):
     reserva = db.get(Reserva, rid)
     if not reserva:
         flash("Reserva no encontrada.", "danger")
+        return redirect(url_for("admin_historial"))
+    # No se pueden eliminar reservas ya finalizadas
+    if reserva_ha_finalizado(reserva):
+        flash("No se pueden eliminar reservas que ya finalizaron.", "danger")
         return redirect(url_for("admin_historial"))
     try:
         db.delete(reserva)
@@ -1379,6 +1598,8 @@ def historial_reservas():
 
     hoy = date.today()
     ahora = datetime.now()
+    # IDs de reservas ya finalizadas (para el template)
+    finalizadas_ids = {r.id for r in reservas if reserva_ha_finalizado(r)}
     return render_template(
         "historial_reservas.html",
         usuario=u,
@@ -1386,6 +1607,7 @@ def historial_reservas():
         conteos=conteos,
         hoy=hoy,
         ahora=ahora,
+        finalizadas_ids=finalizadas_ids,
         filtro_estado=estado,
         filtro_fecha_desde=fecha_desde,
         filtro_fecha_hasta=fecha_hasta,
@@ -1527,11 +1749,15 @@ def admin_historial():
     cals = db.query(Calificacion).all()
     promedio_global = round(sum(c.puntuacion for c in cals) / len(cals), 1) if cals else None
 
+    # IDs de reservas ya finalizadas (para ocultar acciones en el template)
+    finalizadas_ids = {r.id for r in reservas if reserva_ha_finalizado(r)}
+
     return render_template(
         "admin_historial.html",
         usuario=u,
         reservas=reservas,
         espacios=espacios,
+        finalizadas_ids=finalizadas_ids,
         total_reservas=total_reservas,
         total_aprobadas=total_aprobadas,
         total_pend=total_pend,

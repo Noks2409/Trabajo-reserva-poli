@@ -29,22 +29,59 @@
   <div class="card-title">👥 Usuarios <span style="font-size:.8rem; font-weight:400; color:var(--muted); margin-left:.5rem;">{{ usuarios|length }} resultado{{ 's' if usuarios|length != 1 else '' }}</span></div>
   {% if usuarios %}
   <table>
-    <thead><tr><th>ID</th><th>Nombre</th><th>Correo</th><th>Rol</th><th>Detalle</th><th>Acciones</th></tr></thead>
+    <thead><tr><th>ID</th><th>Nombre</th><th>Correo</th><th>Rol</th><th>Estado</th><th>Strikes</th><th>Detalle</th><th>Acciones</th></tr></thead>
     <tbody>
       {% for u in usuarios %}
       <tr>
         <td style="color:var(--muted); font-size:.8rem;">#{{ u.id }}</td>
-        <td><strong>{{ u.nombre }}</strong></td>
+        <td>
+          <strong>{{ u.nombre }}</strong>
+          {% if u.strikes >= 3 %}
+          <span title="{{ u.strikes }} strikes — Posible comportamiento inadecuado"
+                style="margin-left:.4rem; font-size:1rem; cursor:help;">⚠️</span>
+          {% endif %}
+        </td>
         <td style="color:var(--muted);">{{ u.correo }}</td>
         <td><span class="pill pill-{{ u.rol }}">{{ u.rol }}</span></td>
+        <td>
+          {% if u.activo %}
+            <span class="pill" style="background:#eaf7ee; color:#1a6630; font-size:.75rem;">✅ Activo</span>
+          {% else %}
+            <span class="pill" style="background:#fdecea; color:#8b1a1a; font-size:.75rem;">🔒 Inactivo</span>
+          {% endif %}
+        </td>
+        <td style="text-align:center;">
+          {% if u.strikes == 0 %}
+            <span style="color:var(--muted); font-size:.8rem;">—</span>
+          {% else %}
+            <span style="font-weight:700; color:{% if u.strikes >= 3 %}#dc3545{% elif u.strikes == 2 %}#e6a817{% else %}var(--text){% endif %}; font-size:.9rem;">
+              {{ u.strikes }} ⚡
+            </span>
+          {% endif %}
+        </td>
         <td style="font-size:.8rem; color:var(--muted);">
           {% if u.rol == 'docente' %}{{ u.cod_docente or '' }} · {{ u.departamento or '' }}
           {% elif u.rol == 'administrativo' %}{{ u.dependencia or '' }}
           {% elif u.rol == 'externa' %}{{ u.empresa or '' }} · {{ u.telefono or '' }}
-          {% else %}—{% endif %}</td><td style="display:flex; gap:.5rem; flex-wrap:wrap;">
-          <a href="{{ url_for('admin_editar_rol', uid=u.id) }}" class="btn btn-secondary btn-sm">✏️ Editar rol</a>
+          {% else %}—{% endif %}</td>
+        <td style="display:flex; gap:.4rem; flex-wrap:wrap;">
+          <a href="{{ url_for('admin_editar_rol', uid=u.id) }}" class="btn btn-secondary btn-sm">✏️ Rol</a>
           {% if u.id != usuario.id %}
-          <button onclick="confirmarEliminar({{ u.id }}, '{{ u.nombre }}')" class="btn btn-danger btn-sm">🗑 Eliminar</button>
+            <!-- Strike -->
+            <form method="POST" action="{{ url_for('admin_asignar_strike', uid=u.id) }}"
+                  onsubmit="return confirm('¿Asignar un strike a {{ u.nombre }}?')">
+              <button type="submit" class="btn btn-sm"
+                      style="background:#fff3cd; border:1.5px solid #e6a817; color:#7a5c00;">⚡ Strike</button>
+            </form>
+            <!-- Desactivar / Reactivar -->
+            {% if u.activo %}
+              <button onclick="confirmarDesactivar({{ u.id }}, '{{ u.nombre }}')" class="btn btn-danger btn-sm">🔒 Desactivar</button>
+            {% else %}
+              <form method="POST" action="{{ url_for('admin_reactivar_usuario', uid=u.id) }}"
+                    onsubmit="return confirm('¿Reactivar al usuario {{ u.nombre }}?')">
+                <button type="submit" class="btn btn-sm" style="background:#eaf7ee; border:1.5px solid #28a745; color:#1a6630;">🔓 Reactivar</button>
+              </form>
+            {% endif %}
           {% endif %}
         </td>
       </tr>
@@ -55,18 +92,19 @@
   <p style="text-align:center; color:var(--muted); padding:2rem 0;">No hay usuarios con ese filtro.</p>
   {% endif %}
 </div>
-<!-- Modal de confirmación de eliminación -->
-<div id="modalEliminar" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:999; align-items:center; justify-content:center;">
+
+<!-- Modal de confirmación de desactivación -->
+<div id="modalDesactivar" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:999; align-items:center; justify-content:center;">
   <div style="background:white; border-radius:10px; padding:2rem; max-width:420px; width:90%; box-shadow:0 8px 32px rgba(0,0,0,.2);">
-    <h3 style="color:var(--navy); font-family:'Nunito',sans-serif; margin-bottom:.5rem;">⚠️ Confirmar eliminación</h3>
-    <p style="color:var(--muted); font-size:.9rem; margin-bottom:.5rem;">¿Estás seguro de que deseas eliminar al usuario:</p>
+    <h3 style="color:var(--navy); font-family:'Nunito',sans-serif; margin-bottom:.5rem;">🔒 Confirmar desactivación</h3>
+    <p style="color:var(--muted); font-size:.9rem; margin-bottom:.5rem;">¿Estás seguro de que deseas desactivar al usuario:</p>
     <p id="modalNombre" style="font-weight:700; color:var(--danger); font-size:1rem; margin-bottom:1rem;"></p>
-    <p style="font-size:.82rem; color:var(--muted); margin-bottom:1.5rem; background:#fdecea; padding:.6rem .9rem; border-radius:6px; border-left:3px solid var(--danger);">
-      Esta acción <strong>no se puede deshacer</strong>. Se eliminarán también todas sus reservas y datos asociados.
+    <p style="font-size:.82rem; color:var(--muted); margin-bottom:1.5rem; background:#fff8e1; padding:.6rem .9rem; border-radius:6px; border-left:3px solid #e6a817;">
+      El usuario <strong>no podrá iniciar sesión</strong>, pero sus datos, reservas e historial se conservarán íntegros.
     </p>
     <div style="display:flex; gap:.75rem;">
-      <form id="formEliminar" method="POST">
-        <button type="submit" class="btn btn-danger">Sí, eliminar</button>
+      <form id="formDesactivar" method="POST">
+        <button type="submit" class="btn btn-danger">🔒 Sí, desactivar</button>
       </form>
       <button onclick="cerrarModal()" class="btn btn-secondary">Cancelar</button>
     </div>
@@ -74,16 +112,16 @@
 </div>
 
 <script>
-function confirmarEliminar(uid, nombre) {
+function confirmarDesactivar(uid, nombre) {
   document.getElementById('modalNombre').textContent = nombre;
-  document.getElementById('formEliminar').action = '/admin/usuarios/' + uid + '/eliminar';
-  const modal = document.getElementById('modalEliminar');
+  document.getElementById('formDesactivar').action = '/admin/usuarios/' + uid + '/desactivar';
+  const modal = document.getElementById('modalDesactivar');
   modal.style.display = 'flex';
 }
 function cerrarModal() {
-  document.getElementById('modalEliminar').style.display = 'none';
+  document.getElementById('modalDesactivar').style.display = 'none';
 }
-document.getElementById('modalEliminar').addEventListener('click', function(e) {
+document.getElementById('modalDesactivar').addEventListener('click', function(e) {
   if (e.target === this) cerrarModal();
 });
 </script>

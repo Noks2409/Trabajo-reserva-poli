@@ -8,6 +8,7 @@
 
 <div style="margin-bottom:1.25rem;">
   <a href="{{ url_for('reserva_nueva') }}" class="btn btn-primary">＋ Nueva reserva</a>
+  <a href="{{ url_for('historial_reservas') }}" class="btn btn-secondary" style="margin-left:.5rem;">📋 Ver historial completo</a>
 </div>
 
 {% if reservas %}
@@ -22,11 +23,13 @@
         <th>Personas</th>
         <th>Horario</th>
         <th>Estado</th>
+        <th>Calificación</th>
         <th>Acciones</th>
       </tr>
     </thead>
     <tbody>
       {% for r in reservas %}
+      {% set ya_finalizo = r.id in finalizadas_ids %}
       <tr>
         <td style="color:var(--muted); font-size:.8rem;">#{{ r.id }}</td>
         <td>
@@ -47,15 +50,43 @@
           {% if r.estado == 'pendiente' %}
             <span class="pill" style="background:#fff8e1; color:#7a5c00;">⏳ En revisión</span>
           {% elif r.estado == 'aprobada' %}
-            <span class="pill" style="background:#eaf7ee; color:#1a6630;">✅ Confirmada</span>
+            {% if ya_finalizo %}
+              <span class="pill" style="background:#e8f4fd; color:#004085;">🏁 Finalizada</span>
+            {% else %}
+              <span class="pill" style="background:#eaf7ee; color:#1a6630;">✅ Confirmada</span>
+            {% endif %}
           {% elif r.estado == 'rechazada' %}
             <span class="pill" style="background:#fdecea; color:#8b1a1a;">❌ Rechazada</span>
           {% elif r.estado == 'cancelada' %}
             <span class="pill" style="background:#f4f6f9; color:var(--muted);">🚫 Cancelada</span>
           {% endif %}
         </td>
+
+        <!-- Calificación -->
+        <td style="min-width:110px;">
+          {% if r.calificacion %}
+            <div style="color:#f5a623; font-size:.95rem; letter-spacing:1px;">
+              {% for i in range(1,6) %}{{ '★' if i <= r.calificacion.puntuacion else '☆' }}{% endfor %}
+            </div>
+            <div style="font-size:.72rem; color:var(--muted);">{{ r.calificacion.puntuacion }}/5</div>
+            {% if r.calificacion.respuesta_admin %}
+            <div style="font-size:.7rem; color:#005f73; margin-top:.2rem;">💬 Admin respondió</div>
+            {% endif %}
+          {% elif ya_finalizo and r.estado == 'aprobada' %}
+            <a href="{{ url_for('calificar_reserva', rid=r.id) }}"
+               style="background:linear-gradient(135deg,#f5a623,#e88e00); color:#fff; border:none;
+                      font-size:.78rem; padding:.3rem .75rem; border-radius:20px; font-weight:700;
+                      cursor:pointer; text-decoration:none; display:inline-flex; align-items:center; gap:.3rem;">
+              ⭐ Calificar
+            </a>
+          {% else %}
+            <span style="font-size:.75rem; color:var(--muted);">—</span>
+          {% endif %}
+        </td>
+
+        <!-- Acciones -->
         <td>
-          {% if r.estado in ['pendiente', 'aprobada'] %}
+          {% if not ya_finalizo and r.estado in ['pendiente', 'aprobada'] %}
           <div style="display:flex; gap:.4rem; flex-wrap:wrap;">
             {% if r.estado == 'pendiente' %}
             <a href="{{ url_for('modificar_reserva', rid=r.id) }}" class="btn btn-secondary btn-sm">✏️ Modificar</a>
@@ -64,6 +95,8 @@
               <button type="submit" class="btn btn-danger btn-sm">🚫 Cancelar</button>
             </form>
           </div>
+          {% elif ya_finalizo %}
+            <span style="font-size:.75rem; color:var(--muted);">—</span>
           {% endif %}
         </td>
       </tr>

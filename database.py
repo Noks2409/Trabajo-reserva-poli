@@ -61,6 +61,10 @@ class Usuario(Base):
     contrasena = Column(String, nullable=False)
     rol        = Column(String, nullable=False)  # 'docente' | 'administrativo' | 'externa' | 'admin'
 
+    # Estado y control de cuenta
+    activo  = Column(Boolean, default=True, nullable=False)   # False = cuenta desactivada
+    strikes = Column(Integer, default=0,    nullable=False)   # Reportes asignados por el admin
+
     # Campos de Docente
     cod_docente  = Column(String,  nullable=True)
     departamento = Column(String,  nullable=True)
@@ -303,13 +307,13 @@ class Admin(Usuario):
 class Reserva(Base):
     __tablename__ = "reserva"
 
-    id           = Column(Integer, primary_key=True, autoincrement=True)
-    cant_personas = Column(Integer,  nullable=False)
-    tipo_evento  = Column(String,   nullable=False)
-    finalidad    = Column(String,   nullable=True)
-    indumentaria         = Column(String, nullable=True)
-    servicios_adicionales  = Column(String, nullable=True)  # RF-11: sonido, video, sillas, etc.
-    justificacion_rechazo  = Column(String, nullable=True)   # Razón del rechazo (obligatoria al rechazar)
+    id            = Column(Integer, primary_key=True, autoincrement=True)
+    cant_personas = Column(Integer, nullable=False)
+    tipo_evento   = Column(String,  nullable=False)
+    finalidad     = Column(String,  nullable=True)
+    indumentaria          = Column(String, nullable=True)
+    servicios_adicionales = Column(String, nullable=True)  # RF-11: sonido, video, sillas, etc.
+    justificacion_rechazo = Column(String, nullable=True)  # Razón del rechazo (obligatoria al rechazar)
     fecha        = Column(Date,     nullable=False)
     hora_inicio  = Column(Time,     nullable=False)
     hora_fin     = Column(Time,     nullable=False)
@@ -319,9 +323,11 @@ class Reserva(Base):
     usuario_id   = Column(Integer, ForeignKey("usuario.id"), nullable=False)
 
     # Relaciones
-    usuario      = relationship("Usuario",     back_populates="reservas")
-    espacios     = relationship("Espacio",     secondary=reserva_espacio, back_populates="reservas")
-    calificacion = relationship("Calificacion", back_populates="reserva", uselist=False)
+    usuario            = relationship("Usuario",               back_populates="reservas")
+    espacios           = relationship("Espacio",               secondary=reserva_espacio, back_populates="reservas")
+    calificacion       = relationship("Calificacion",          back_populates="reserva", uselist=False)
+    personas_externas  = relationship("PersonaExternaReserva", back_populates="reserva",
+                                      cascade="all, delete-orphan")
 
     def __repr__(self):
         return f"<Reserva id={self.id} evento='{self.tipo_evento}' estado='{self.estado}'>"
@@ -415,6 +421,30 @@ class Espacio(Base):
 
 
 # ─────────────────────────────────────────────
+#  PERSONA EXTERNA DE RESERVA
+# ─────────────────────────────────────────────
+
+class PersonaExternaReserva(Base):
+    """
+    Persona externa asociada a una reserva.
+    El responsable es siempre el usuario que creó la reserva.
+    """
+    __tablename__ = "persona_externa_reserva"
+
+    id            = Column(Integer, primary_key=True, autoincrement=True)
+    nombre        = Column(String, nullable=False)
+    cedula        = Column(String, nullable=False)
+    fecha_ingreso = Column(Date,   nullable=True)
+    fecha_salida  = Column(Date,   nullable=True)
+
+    reserva_id = Column(Integer, ForeignKey("reserva.id"), nullable=False)
+    reserva    = relationship("Reserva", back_populates="personas_externas")
+
+    def __repr__(self):
+        return f"<PersonaExternaReserva id={self.id} nombre='{self.nombre}' reserva_id={self.reserva_id}>"
+
+
+# ─────────────────────────────────────────────
 #  CALIFICACIÓN
 # ─────────────────────────────────────────────
 
@@ -449,10 +479,11 @@ class Calificacion(Base):
 class AgendaSemestral(Base):
     __tablename__ = "agenda_semestral"
 
-    id           = Column(Integer, primary_key=True, autoincrement=True)
-    semestre     = Column(String,  nullable=False)   # ej. '2025-1'
-    fecha_inicio = Column(Date,    nullable=False)
-    fecha_fin    = Column(Date,    nullable=False)
+    id                     = Column(Integer, primary_key=True, autoincrement=True)
+    semestre               = Column(String,  nullable=False)   # ej. '2025-1'
+    fecha_inicio           = Column(Date,    nullable=False)
+    fecha_fin              = Column(Date,    nullable=False)
+    restricciones_aplicadas = Column(String, nullable=True)   # Texto descriptivo de restricciones
 
     bloques = relationship("BloqueHorario", back_populates="agenda")
 
@@ -535,24 +566,68 @@ class Reporte(Base):
 def crear_base_de_datos():
     """Crea todas las tablas en el archivo reservas.db y aplica migraciones incrementales."""
     Base.metadata.create_all(engine)
-    _migrar_calificacion()
+    _migrar_esquema()
     print("[OK] Base de datos lista.")
 
 
-def _migrar_calificacion():
-    """Agrega columnas nuevas a 'calificacion' si aún no existen (migración segura)."""
+def _migrar_esquema():
+    """
+    Migración incremental segura para SQLite.
+    Agrega columnas nuevas a las tablas existentes sin perder datos.
+    """
     import sqlite3
     db_path = DATABASE_URL.replace("sqlite:///", "")
     if not DATABASE_URL.startswith("sqlite"):
-        return  # PostgreSQL gestiona esquemas diferente; usar Alembic en producción
+        return  # PostgreSQL: usar Alembic en producción
     try:
         con = sqlite3.connect(db_path)
         cur = con.cursor()
+
+        # ── Tabla: calificacion ──────────────────────────────────────
         cur.execute("PRAGMA table_info(calificacion)")
-        columnas = {row[1] for row in cur.fetchall()}
-        if "respuesta_admin" not in columnas:
+        cols_cal = {row[1] for row in cur.fetchall()}
+        if "respuesta_admin" not in cols_cal:
             cur.execute("ALTER TABLE calificacion ADD COLUMN respuesta_admin TEXT")
-            print("[MIGRACIÓN] Columna 'respuesta_admin' agregada a 'calificacion'.")
+            print("[MIGRACIÓN] 'calificacion.respuesta_admin' agregada.")
+
+        # ── Tabla: usuario ───────────────────────────────────────────
+        cur.execute("PRAGMA table_info(usuario)")
+        cols_usr = {row[1] for row in cur.fetchall()}
+        if "activo" not in cols_usr:
+            cur.execute("ALTER TABLE usuario ADD COLUMN activo INTEGER NOT NULL DEFAULT 1")
+            print("[MIGRACIÓN] 'usuario.activo' agregada.")
+        if "strikes" not in cols_usr:
+            cur.execute("ALTER TABLE usuario ADD COLUMN strikes INTEGER NOT NULL DEFAULT 0")
+            print("[MIGRACIÓN] 'usuario.strikes' agregada.")
+
+        # ── Tabla: reserva ───────────────────────────────────────────
+        # (Las columnas eliminadas como cant_utileros se mantienen en la BD por
+        #  compatibilidad pero ya no se usan en la aplicación.)
+
+        # ── Tabla: persona_externa_reserva ───────────────────────────
+        # La tabla se crea automáticamente por create_all si no existe.
+        # Migración defensiva por si la BD fue creada antes:
+        cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='persona_externa_reserva'")
+        if not cur.fetchone():
+            cur.execute("""
+                CREATE TABLE persona_externa_reserva (
+                    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+                    nombre        TEXT NOT NULL,
+                    cedula        TEXT NOT NULL,
+                    fecha_ingreso DATE,
+                    fecha_salida  DATE,
+                    reserva_id    INTEGER NOT NULL REFERENCES reserva(id)
+                )
+            """)
+            print("[MIGRACIÓN] Tabla 'persona_externa_reserva' creada.")
+
+        # ── Tabla: agenda_semestral ──────────────────────────────────
+        cur.execute("PRAGMA table_info(agenda_semestral)")
+        cols_ag = {row[1] for row in cur.fetchall()}
+        if "restricciones_aplicadas" not in cols_ag:
+            cur.execute("ALTER TABLE agenda_semestral ADD COLUMN restricciones_aplicadas TEXT")
+            print("[MIGRACIÓN] 'agenda_semestral.restricciones_aplicadas' agregada.")
+
         con.commit()
         con.close()
     except Exception as e:

@@ -164,8 +164,9 @@
     </thead>
     <tbody>
       {% for r in reservas %}
-      {# ¿Puede calificar? Aprobada + fecha pasada #}
-      {% set puede_calificar = (r.estado == 'aprobada' and r.fecha < hoy) %}
+      {# ¿Puede calificar? Aprobada + ya finalizó por completo (fecha+hora) + sin calificación previa #}
+      {% set ya_finalizo = r.id in finalizadas_ids %}
+      {% set puede_calificar = (r.estado == 'aprobada' and ya_finalizo and not r.calificacion) %}
       <tr id="row-{{ r.id }}">
         <td style="color:var(--muted); font-size:.78rem; font-weight:700;">#{{ r.id }}</td>
 
@@ -222,7 +223,7 @@
         <!-- Acciones -->
         <td>
           <div style="display:flex; gap:.4rem; flex-wrap:wrap;">
-            {% if r.estado in ['pendiente', 'aprobada'] %}
+            {% if not ya_finalizo and r.estado in ['pendiente', 'aprobada'] %}
               {% if r.estado == 'pendiente' %}
               <a href="{{ url_for('modificar_reserva', rid=r.id) }}" class="btn btn-secondary btn-sm">✏️</a>
               {% endif %}
@@ -230,8 +231,10 @@
                     onsubmit="return confirm('¿Seguro que deseas cancelar esta reserva?')">
                 <button type="submit" class="btn btn-danger btn-sm">🚫</button>
               </form>
+            {% elif ya_finalizo and r.estado == 'aprobada' and not r.calificacion %}
+              <span style="font-size:.75rem; color:var(--muted);">⭐ Califica primero</span>
             {% endif %}
-            {% if r.calificacion and puede_calificar %}
+            {% if r.calificacion and ya_finalizo %}
             <a href="{{ url_for('calificar_reserva', rid=r.id) }}" class="btn btn-secondary btn-sm" title="Editar calificación">✏️⭐</a>
             {% endif %}
           </div>
