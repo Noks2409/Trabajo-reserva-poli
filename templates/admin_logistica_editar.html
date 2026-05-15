@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}Editar Personal de Logistica{% endblock %}
+{% block content %}
+<div class="page-header">
+  <h1>Editar personal de logistica</h1>
+  <p>Actualiza los datos de la cuenta operativa</p>
+</div>
+<div class="card" style="max-width:480px;">
+  <form method="POST">
+    <div class="form-group">
+      <label>Nombre completo</label>
+      <input type="text" name="nombre" required value="{{ personal.nombre }}"/>
+    </div>
+    <div class="form-group">
+      <label>Correo electronico</label>
+      <input type="email" name="correo" required value="{{ personal.correo }}"/>
+    </div>
+    <div class="form-group">
+      <label>Nueva contrasena temporal</label>
+      <input type="password" name="contrasena" placeholder="Dejar vacio para conservarla"/>
+    </div>
+    <div style="display:flex; gap:.75rem; margin-top:1.25rem;">
+      <button type="submit" class="btn btn-primary">Guardar cambios</button>
+      <a href="{{ url_for('admin_logistica') }}" class="btn btn-secondary">Cancelar</a>
+    </div>
+  </form>
+</div>
+{% endblock %}
