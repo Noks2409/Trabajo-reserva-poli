@@ -6,6 +6,7 @@ Módulo de autenticación + gestión de perfil + frontend por rol
 from flask import Flask, render_template, request, redirect, url_for, session, flash, make_response, jsonify
 from flask_mail import Mail, Message
 import bcrypt
+import traceback
 from database import (crear_base_de_datos, Session as DBSession, Usuario, Admin,
                        Docente, Administrativo, PersonaExterna, CONFLICTOS,
                        PersonaExternaReserva)
@@ -1015,8 +1016,8 @@ def reserva_nueva():
             flash(f"Datos inválidos. Revisa el formulario.", "danger")
         except Exception as ex:
             db.rollback()
-            flash(f"Error al procesar la reserva. Intenta de nuevo.", "danger")
-
+            traceback.print_exc()
+            flash(f"Error al procesar la reserva: {ex}", "danger")
     return render_template("reserva_nueva.html", usuario=u, espacios=espacios)
 
 
