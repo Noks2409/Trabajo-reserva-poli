@@ -22,13 +22,23 @@ Base = declarative_base()
 
 DATABASE_URL = os.environ.get("DATABASE_URL", "sqlite:///reservas.db")
 
-engine = create_engine(DATABASE_URL, echo=False)
+engine = create_engine(
+    DATABASE_URL,
+    echo=False,
+    pool_pre_ping=True,
+    connect_args={"sslmode": "require"}
+)
 
 # Railway a veces entrega URLs con "postgres://" pero SQLAlchemy necesita "postgresql://"
 if DATABASE_URL.startswith("postgres://"):
     DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
 
-engine = create_engine(DATABASE_URL, echo=False)
+engine = create_engine(
+    DATABASE_URL,
+    echo=False,
+    pool_pre_ping=True,
+    connect_args={"sslmode": "require"}
+)
 
 # Fábrica de sesiones
 Session = scoped_session(sessionmaker(bind=engine))
