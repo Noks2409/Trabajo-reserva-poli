@@ -2,7 +2,7 @@
 Base de datos para sistema de reservas de espacios.
 Politécnico Grancolombiano
 
-Soporta SQLite (desarrollo local) y PostgreSQL (producción en Railway).
+
 La variable de entorno DATABASE_URL determina cuál usar.
 """
 
@@ -19,7 +19,7 @@ from datetime import date, time
 
 Base = declarative_base()
 
-# Motor: usa PostgreSQL en producción, SQLite en local
+
 DATABASE_URL = os.environ.get("DATABASE_URL", "sqlite:///reservas.db")
 
 engine = create_engine(DATABASE_URL, echo=False)
@@ -574,10 +574,11 @@ def crear_base_de_datos():
 
 def _migrar_esquema():
     """
-    Migración incremental segura para SQLite.
+    
     Agrega columnas nuevas a las tablas existentes sin perder datos.
     """
     import sqlite3
+    import os
     db_path = DATABASE_URL.replace("sqlite:///", "")
     if not DATABASE_URL.startswith("sqlite"):
         return  # PostgreSQL: usar Alembic en producción
