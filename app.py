@@ -3,6 +3,8 @@ Sistema de Reservas de Espacios — Sprint 3
 Módulo de autenticación + gestión de perfil + frontend por rol
 """
 
+from asyncio import coroutines
+from asyncio import coroutines
 from flask import Flask, render_template, request, redirect, url_for, session, flash, make_response, jsonify
 from flask_mail import Mail, Message
 import bcrypt
@@ -1018,6 +1020,9 @@ def reserva_nueva():
             db.rollback()
             traceback.print_exc()
             flash(f"Error al procesar la reserva: {ex}", "danger")
+        except Exception as ex:
+            db.rollback()
+            raise ex
     return render_template("reserva_nueva.html", usuario=u, espacios=espacios)
 
 
