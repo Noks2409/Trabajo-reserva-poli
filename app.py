@@ -311,8 +311,13 @@ def requiere_login(f):
     from functools import wraps
     @wraps(f)
     def wrapper(*args, **kwargs):
-        if not usuario_logueado():
+        u = usuario_logueado()
+        if not u:
             flash("Debes iniciar sesión primero.", "warning")
+            return redirect(url_for("login"))
+        if not u.activo:
+            session.clear()
+            flash("Tu cuenta ha sido desactivada. Contacta al administrador.", "danger")
             return redirect(url_for("login"))
         return f(*args, **kwargs)
     return wrapper
@@ -659,7 +664,7 @@ def admin_asignar_strike(uid):
 #  SPRINT 5 — Agenda, Espacios y Reservas
 # ══════════════════════════════════════════════════════════════════════════
 
-from database import AgendaSemestral, BloqueHorario, Espacio, Reserva, Calificacion
+from database import AgendaSemestral, BloqueHorario, Espacio, Reserva, Calificacion, Sancion
 from datetime import datetime, time as dtime
 
 # ── Restricciones horarias por defecto (RF-08, RF-09) ─────────────────────
@@ -1080,6 +1085,83 @@ def recuperar_contrasena_reset(token):
 
 
 # ── Admin: gestión de reservas ──────────────────────────────────────────────
+
+@app.route("/reservas/<int:rid>/ver")
+@requiere_login
+def ver_reserva(rid):
+    u = usuario_logueado()
+    reserva = db.get(Reserva, rid)
+
+    if not reserva:
+        flash("Reserva no encontrada.", "danger")
+        return redirect(url_for("admin_historial") if u.rol == "admin" else url_for("mis_reservas"))
+
+    if u.rol != "admin" and reserva.usuario_id != u.id:
+        flash("No tienes permiso para ver esta reserva.", "danger")
+        return redirect(url_for("mis_reservas"))
+
+    return render_template("ver_reserva.html", usuario=u, reserva=reserva)
+
+
+@app.route("/admin/sanciones")
+@requiere_login
+@requiere_admin
+def admin_sanciones():
+    u = usuario_logueado()
+    sanciones = (
+        db.query(Sancion)
+        .order_by(Sancion.fecha.desc(), Sancion.id.desc())
+        .all()
+    )
+    return render_template("admin_sanciones.html", usuario=u, sanciones=sanciones)
+
+
+@app.route("/admin/sanciones/nueva", methods=["GET", "POST"])
+@requiere_login
+@requiere_admin
+def admin_sancion_nueva():
+    u = usuario_logueado()
+    usuarios = db.query(Usuario).order_by(Usuario.nombre.asc()).all()
+    reservas = db.query(Reserva).order_by(Reserva.fecha.desc()).all()
+
+    if request.method == "POST":
+        usuario_id = request.form.get("usuario_id", type=int)
+        reserva_id = request.form.get("reserva_id", type=int)
+        tipo = request.form.get("tipo", "advertencia").strip()
+        descripcion = request.form.get("descripcion", "").strip()
+
+        if tipo not in ["advertencia", "suspension"]:
+            flash("Tipo de sanción inválido.", "danger")
+            return render_template("admin_sancion_nueva.html", usuario=u, usuarios=usuarios, reservas=reservas)
+        if not usuario_id or not db.get(Usuario, usuario_id):
+            flash("Debes seleccionar un usuario válido.", "danger")
+            return render_template("admin_sancion_nueva.html", usuario=u, usuarios=usuarios, reservas=reservas)
+        if reserva_id and not db.get(Reserva, reserva_id):
+            flash("La reserva asociada no existe.", "danger")
+            return render_template("admin_sancion_nueva.html", usuario=u, usuarios=usuarios, reservas=reservas)
+        if not descripcion:
+            flash("La descripción de la sanción es obligatoria.", "danger")
+            return render_template("admin_sancion_nueva.html", usuario=u, usuarios=usuarios, reservas=reservas)
+
+        try:
+            sancion = Sancion(
+                usuario_id=usuario_id,
+                reserva_id=reserva_id,
+                admin_id=u.id,
+                tipo=tipo,
+                descripcion=descripcion,
+                fecha=date.today(),
+            )
+            db.add(sancion)
+            db.commit()
+            flash("Sanción registrada correctamente.", "success")
+            return redirect(url_for("admin_sanciones"))
+        except Exception as e:
+            db.rollback()
+            flash(f"Error al registrar la sanción: {e}", "danger")
+
+    return render_template("admin_sancion_nueva.html", usuario=u, usuarios=usuarios, reservas=reservas)
+
 
 @app.route("/admin/reservas")
 @requiere_login

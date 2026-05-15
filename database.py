@@ -95,6 +95,16 @@ class Usuario(Base):
 
     # Relaciones
     reservas = relationship("Reserva", back_populates="usuario")
+    sanciones_recibidas = relationship(
+        "Sancion",
+        foreign_keys="Sancion.usuario_id",
+        back_populates="usuario",
+    )
+    sanciones_aplicadas = relationship(
+        "Sancion",
+        foreign_keys="Sancion.admin_id",
+        back_populates="admin",
+    )
 
     # Discriminador de herencia
     __mapper_args__ = {
@@ -345,6 +355,7 @@ class Reserva(Base):
     calificacion       = relationship("Calificacion",          back_populates="reserva", uselist=False)
     personas_externas  = relationship("PersonaExternaReserva", back_populates="reserva",
                                       cascade="all, delete-orphan")
+    sanciones          = relationship("Sancion", back_populates="reserva")
 
     def __repr__(self):
         return f"<Reserva id={self.id} evento='{self.tipo_evento}' estado='{self.estado}'>"
@@ -493,6 +504,38 @@ class Calificacion(Base):
 #  AGENDA SEMESTRAL
 # ─────────────────────────────────────────────
 
+class Sancion(Base):
+    __tablename__ = "sancion"
+
+    id          = Column(Integer, primary_key=True, autoincrement=True)
+    tipo        = Column(String, nullable=False, default="advertencia")
+    descripcion = Column(String, nullable=False)
+    fecha       = Column(Date, nullable=False, default=date.today)
+
+    usuario_id = Column(Integer, ForeignKey("usuario.id"), nullable=False)
+    reserva_id = Column(Integer, ForeignKey("reserva.id"), nullable=True)
+    admin_id   = Column(Integer, ForeignKey("usuario.id"), nullable=False)
+
+    usuario = relationship(
+        "Usuario",
+        foreign_keys=[usuario_id],
+        back_populates="sanciones_recibidas",
+    )
+    reserva = relationship("Reserva", back_populates="sanciones")
+    admin   = relationship(
+        "Usuario",
+        foreign_keys=[admin_id],
+        back_populates="sanciones_aplicadas",
+    )
+
+    def __repr__(self):
+        return f"<Sancion id={self.id} usuario_id={self.usuario_id} tipo='{self.tipo}'>"
+
+    def registrar(self, session):
+        session.add(self)
+        session.commit()
+
+
 class AgendaSemestral(Base):
     __tablename__ = "agenda_semestral"
 
@@ -617,6 +660,21 @@ def _migrar_esquema():
         if "strikes" not in cols_usr:
             cur.execute("ALTER TABLE usuario ADD COLUMN strikes INTEGER NOT NULL DEFAULT 0")
             print("[MIGRACIÓN] 'usuario.strikes' agregada.")
+
+        cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='sancion'")
+        if not cur.fetchone():
+            cur.execute("""
+                CREATE TABLE sancion (
+                    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                    tipo        TEXT NOT NULL DEFAULT 'advertencia',
+                    descripcion TEXT NOT NULL,
+                    fecha       DATE NOT NULL,
+                    usuario_id  INTEGER NOT NULL REFERENCES usuario(id),
+                    reserva_id  INTEGER REFERENCES reserva(id),
+                    admin_id    INTEGER NOT NULL REFERENCES usuario(id)
+                )
+            """)
+            print("[MIGRACIÓN] Tabla 'sancion' creada.")
 
         # ── Tabla: reserva ───────────────────────────────────────────
         # (Las columnas eliminadas como cant_utileros se mantienen en la BD por

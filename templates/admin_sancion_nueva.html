@@ -28,7 +28,7 @@
       <select name="reserva_id">
         <option value="">— Sin reserva asociada —</option>
         {% for r in reservas %}
-        <option value="{{ r.id }}">#{{ r.id }} — {{ r.tipo_evento }} ({{ r.fecha.strftime('%d/%m/%Y') }})</option>
+        <option value="{{ r.id }}">#{{ r.id }} — {{ r.tipo_evento }} — {{ r.usuario.nombre }} ({{ r.fecha.strftime('%d/%m/%Y') }})</option>
         {% endfor %}
       </select>
     </div>

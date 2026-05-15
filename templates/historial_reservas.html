@@ -223,6 +223,7 @@
         <!-- Acciones -->
         <td>
           <div style="display:flex; gap:.4rem; flex-wrap:wrap;">
+            <a href="{{ url_for('ver_reserva', rid=r.id) }}" class="btn btn-secondary btn-sm">Ver</a>
             {% if not ya_finalizo and r.estado in ['pendiente', 'aprobada'] %}
               {% if r.estado == 'pendiente' %}
               <a href="{{ url_for('modificar_reserva', rid=r.id) }}" class="btn btn-secondary btn-sm">✏️</a>

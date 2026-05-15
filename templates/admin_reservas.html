@@ -48,6 +48,7 @@
         <td style="text-align:center;">{{ r.cant_personas }}</td>
         <td>
           <div style="display:flex; gap:.4rem; flex-wrap:wrap;">
+            <a href="{{ url_for('ver_reserva', rid=r.id) }}" class="btn btn-secondary btn-sm">Ver detalle</a>
             <a href="{{ url_for('admin_aprobar_reserva', rid=r.id) }}" class="btn btn-success btn-sm">✅ Aprobar</a>
             <a href="{{ url_for('admin_rechazar_reserva', rid=r.id) }}" class="btn btn-danger btn-sm">❌ Rechazar</a>
             <a href="{{ url_for('admin_modificar_reserva', rid=r.id) }}" class="btn btn-secondary btn-sm">✏️ Modificar</a>
