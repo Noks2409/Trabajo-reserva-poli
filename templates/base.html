@@ -32,7 +32,7 @@
 
     .topbar { background: var(--navy-dark); padding: .3rem 2rem; font-size: .73rem; color: rgba(255,255,255,.45); display: flex; justify-content: space-between; }
 
-    nav { background: var(--navy); padding: 0 2rem; height: 64px; display: flex; align-items: center; justify-content: space-between; box-shadow: 0 2px 8px rgba(0,0,0,.3); position: sticky; top: 0; z-index: 100; }
+    nav { background: var(--navy); padding: 0 2rem; height: 64px; display: flex; align-items: center; justify-content: space-between; box-shadow: 0 2px 8px rgba(0,0,0,.3); position: sticky; top: 0; z-index: 100; overflow: visible; }
     .nav-brand { display: flex; align-items: center; gap: .75rem; }
     .nav-logo-wrap { background: white; border-radius: 6px; padding: 3px 8px; display:flex; align-items:center; }
     .nav-logo-img { height: 34px; display:block; }
@@ -103,6 +103,40 @@
 
     footer { background: var(--navy); color: rgba(255,255,255,.45); text-align: center; padding: 1.2rem; font-size: .75rem; }
     footer strong { color: var(--cyan); }
+
+    /* ── Admin dropdown menu ─────────────────────────────── */
+    .admin-menu { position: relative; }
+    .admin-menu-btn {
+      display: inline-flex; align-items: center; gap: .4rem;
+      background: rgba(0,180,216,.15); border: 1.5px solid rgba(0,180,216,.35);
+      color: var(--cyan); padding: 5px 13px; border-radius: var(--radius);
+      font-size: .82rem; font-weight: 700; cursor: pointer;
+      font-family: 'Nunito', sans-serif; transition: all .2s;
+      white-space: nowrap;
+    }
+    .admin-menu-btn:hover { background: rgba(0,180,216,.28); border-color: var(--cyan); }
+    .admin-chevron { font-size: .7rem; transition: transform .2s; }
+    .admin-chevron.open { transform: rotate(180deg); }
+    .admin-dropdown {
+      display: none; position: absolute; right: 0; top: calc(100% + 8px);
+      background: var(--navy-dark); border: 1px solid rgba(255,255,255,.1);
+      border-radius: 10px; min-width: 230px; z-index: 9999;
+      box-shadow: 0 8px 32px rgba(0,0,0,.45);
+      padding: .5rem 0; overflow: hidden;
+    }
+    .admin-dropdown.open { display: block; }
+    .admin-dropdown-header {
+      font-size: .68rem; font-weight: 800; text-transform: uppercase;
+      letter-spacing: .1em; color: var(--cyan); padding: .5rem 1rem .3rem;
+    }
+    .admin-dropdown a {
+      display: flex; align-items: center; gap: .5rem;
+      padding: .52rem 1rem; font-size: .83rem; font-weight: 600;
+      color: rgba(255,255,255,.75); transition: background .15s, color .15s;
+      text-decoration: none;
+    }
+    .admin-dropdown a:hover { background: rgba(0,180,216,.18); color: var(--cyan); text-decoration: none; }
+    .admin-dropdown-sep { border-top: 1px solid rgba(255,255,255,.08); margin: .35rem 0; }
   </style>
   {% block head %}{% endblock %}
   <!-- Evitar caché del navegador -->
@@ -141,14 +175,26 @@
     </a>
     {% endif %}
     {% if usuario and usuario.rol == 'admin' %}
-      <a href="{{ url_for('admin_historial') }}">Historial <span class="nav-badge">Admin</span></a>
-      <a href="{{ url_for('admin_calificaciones') }}">Calificaciones <span class="nav-badge">Admin</span></a>
-      <a href="{{ url_for('admin_reservas') }}">Reservas <span class="nav-badge">Admin</span></a>
-      <a href="{{ url_for('admin_usuarios') }}">Usuarios <span class="nav-badge">Admin</span></a>
-      <a href="{{ url_for('admin_logistica') }}">Logistica <span class="nav-badge">Admin</span></a>
-      <a href="{{ url_for('admin_sanciones') }}">Sanciones <span class="nav-badge">Admin</span></a>
-      <a href="{{ url_for('admin_agenda') }}">Agenda <span class="nav-badge">Admin</span></a>
-      <a href="{{ url_for('admin_espacios') }}">Espacios <span class="nav-badge">Admin</span></a>
+      <div class="admin-menu" id="adminMenu">
+        <button class="admin-menu-btn" onclick="toggleAdminMenu(event)" type="button">
+          ⚙️ Panel Admin <span class="admin-chevron" id="adminChevron">▾</span>
+        </button>
+        <div class="admin-dropdown" id="adminDropdown">
+          <div class="admin-dropdown-header">Funciones de administrador</div>
+          <a href="{{ url_for('admin_historial') }}">📋 Historial de reservas</a>
+          <a href="{{ url_for('admin_reservas') }}">🗂️ Reservas pendientes</a>
+          <a href="{{ url_for('admin_crear_reserva') }}">➕ Crear reserva</a>
+          <a href="{{ url_for('admin_calificaciones') }}">⭐ Calificaciones</a>
+          <div class="admin-dropdown-sep"></div>
+          <a href="{{ url_for('admin_usuarios') }}">👥 Usuarios y roles</a>
+          <a href="{{ url_for('admin_logistica') }}">🔧 Personal logístico</a>
+          <a href="{{ url_for('admin_sanciones') }}">⚠️ Sanciones</a>
+          <div class="admin-dropdown-sep"></div>
+          <a href="{{ url_for('admin_espacios') }}">🏛️ Espacios</a>
+          <a href="{{ url_for('admin_agenda') }}">📅 Agenda semestral</a>
+          <a href="{{ url_for('admin_fechas_bloqueadas') }}">🚫 Fechas bloqueadas</a>
+        </div>
+      </div>
     {% endif %}
     <a href="{{ url_for('logout') }}"><button class="btn-logout">Cerrar sesión</button></a>
   </div>
@@ -185,6 +231,21 @@ window.addEventListener('pageshow', function(e) {
     // Página restaurada desde bfcache — recargar para validar sesión
     window.location.reload();
   }
+});
+
+// ── Admin dropdown ──────────────────────────────────────────
+function toggleAdminMenu(e) {
+  e.stopPropagation();
+  const dd      = document.getElementById('adminDropdown');
+  const chevron = document.getElementById('adminChevron');
+  const open    = dd.classList.toggle('open');
+  chevron.classList.toggle('open', open);
+}
+document.addEventListener('click', function() {
+  const dd = document.getElementById('adminDropdown');
+  const chevron = document.getElementById('adminChevron');
+  if (dd) { dd.classList.remove('open'); }
+  if (chevron) { chevron.classList.remove('open'); }
 });
 </script>
 </body>

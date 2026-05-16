@@ -8,7 +8,7 @@ La variable de entorno DATABASE_URL determina cuál usar.
 
 import os
 from sqlalchemy import (
-    create_engine, Column, Integer, String, Date, Time, ForeignKey, Table, Numeric, Boolean
+    create_engine, Column, Integer, String, Date, Time, ForeignKey, Table, Numeric, Boolean, text
 )
 from sqlalchemy.orm import declarative_base, relationship, sessionmaker, scoped_session
 from datetime import date, time
@@ -22,27 +22,23 @@ Base = declarative_base()
 
 DATABASE_URL = os.environ.get("DATABASE_URL", "sqlite:///reservas.db")
 
-engine = create_engine(
-    DATABASE_URL,
-    pool_pre_ping=True,
-    pool_recycle=300,
-    pool_size=5,
-    max_overflow=2,
-    connect_args={
-        "sslmode": "require"
-    }
-)
+# Corregir URLs antiguas de Railway: "postgres://" → "postgresql://"
+if DATABASE_URL.startswith("postgres://"):
+    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
 
-# Railway a veces entrega URLs con "postgres://" pero SQLAlchemy necesita "postgresql://"
+# En entornos serverless (Vercel) el pool de conexiones no funciona bien:
+# cada request puede correr en un proceso nuevo y las conexiones del pool
+# quedan abiertas pero muertas. NullPool abre y cierra una conexión fresca
+# por request, eliminando el error "SSL connection has been closed unexpectedly".
 if DATABASE_URL.startswith("sqlite"):
     engine = create_engine(DATABASE_URL, echo=False)
 else:
+    from sqlalchemy.pool import NullPool
     engine = create_engine(
         DATABASE_URL,
+        poolclass=NullPool,
+        connect_args={"sslmode": "require"},
         echo=False,
-        pool_pre_ping=True,
-        pool_recycle=300,
-        connect_args={"sslmode": "require"}
     )
 
 # Fábrica de sesiones
@@ -95,11 +91,6 @@ class Usuario(Base):
 
     # Relaciones
     reservas = relationship("Reserva", back_populates="usuario", foreign_keys="Reserva.usuario_id")
-    reservas_logistica = relationship(
-        "Reserva",
-        foreign_keys="Reserva.logistica_id",
-        back_populates="logistica",
-    )
     sanciones_recibidas = relationship(
         "Sancion",
         foreign_keys="Sancion.usuario_id",
@@ -275,8 +266,20 @@ class PersonalLogistica(Usuario):
     """
     Personal operativo creado y administrado exclusivamente por un administrador.
     No crea, modifica ni elimina reservas; solo consulta las que tenga asignadas.
+
+    Herencia de tabla separada (joined table inheritance): la fila principal
+    va en 'usuario' y el id se replica en 'logistica' para satisfacer la FK
+    que PostgreSQL/Railway tiene desde el esquema original del proyecto.
     """
+    __tablename__ = "logistica"
+    id = Column(Integer, ForeignKey("usuario.id"), primary_key=True)
     __mapper_args__ = {"polymorphic_identity": "logistica"}
+
+    reservas_logistica = relationship(
+        "Reserva",
+        foreign_keys="Reserva.logistica_id",
+        back_populates="logistica",
+    )
 
     def consultar_reservas_asignadas(self, session):
         return session.query(Reserva).filter_by(logistica_id=self.id).all()
@@ -364,11 +367,11 @@ class Reserva(Base):
     # Estado puede ser: 'pendiente' | 'aprobada' | 'rechazada' | 'cancelada'
 
     usuario_id   = Column(Integer, ForeignKey("usuario.id"), nullable=False)
-    logistica_id = Column(Integer, ForeignKey("usuario.id"), nullable=True)
+    logistica_id = Column(Integer, ForeignKey("logistica.id"), nullable=True)
 
     # Relaciones
     usuario            = relationship("Usuario",               foreign_keys=[usuario_id], back_populates="reservas")
-    logistica          = relationship("Usuario",               foreign_keys=[logistica_id], back_populates="reservas_logistica")
+    logistica          = relationship("PersonalLogistica",     foreign_keys=[logistica_id], back_populates="reservas_logistica")
     espacios           = relationship("Espacio",               secondary=reserva_espacio, back_populates="reservas")
     calificacion       = relationship("Calificacion",          back_populates="reserva", uselist=False)
     personas_externas  = relationship("PersonaExternaReserva", back_populates="reserva",
@@ -638,6 +641,29 @@ class Reporte(Base):
 
 
 # ─────────────────────────────────────────────
+#  FECHAS BLOQUEADAS (administradas por el admin)
+# ─────────────────────────────────────────────
+
+class FechaBloqueada(Base):
+    """
+    Fecha específica bloqueada manualmente por un administrador.
+    Las fechas bloqueadas impiden crear nuevas reservas ese día.
+    Solo el administrador puede desbloquearlas.
+    """
+    __tablename__ = "fecha_bloqueada"
+
+    id       = Column(Integer, primary_key=True, autoincrement=True)
+    fecha    = Column(Date,    nullable=False, unique=True)
+    motivo   = Column(String,  nullable=True)
+    admin_id = Column(Integer, ForeignKey("usuario.id"), nullable=False)
+
+    admin = relationship("Usuario", foreign_keys=[admin_id])
+
+    def __repr__(self):
+        return f"<FechaBloqueada {self.fecha} motivo='{self.motivo}'>"
+
+
+# ─────────────────────────────────────────────
 #  CREAR TABLAS EN LA BASE DE DATOS
 # ─────────────────────────────────────────────
 
@@ -645,6 +671,7 @@ def crear_base_de_datos():
     """Crea todas las tablas en el archivo reservas.db y aplica migraciones incrementales."""
     Base.metadata.create_all(engine)
     _migrar_esquema()
+    _migrar_esquema_postgres()
     print("[OK] Base de datos lista.")
 
 
@@ -700,7 +727,7 @@ def _migrar_esquema():
         cur.execute("PRAGMA table_info(reserva)")
         cols_reserva = {row[1] for row in cur.fetchall()}
         if "logistica_id" not in cols_reserva:
-            cur.execute("ALTER TABLE reserva ADD COLUMN logistica_id INTEGER REFERENCES usuario(id)")
+            cur.execute("ALTER TABLE reserva ADD COLUMN logistica_id INTEGER REFERENCES logistica(id)")
             print("[MIGRACIÓN] 'reserva.logistica_id' agregada.")
 
         # ── Tabla: persona_externa_reserva ───────────────────────────
@@ -731,6 +758,58 @@ def _migrar_esquema():
         con.close()
     except Exception as e:
         print(f"[MIGRACIÓN] Error: {e}")
+
+
+def _migrar_esquema_postgres():
+    """
+    Migraciones específicas para PostgreSQL (Railway).
+
+    Problema histórico: 'PersonalLogistica' usó herencia de tabla separada
+    con __tablename__ = 'logistica'. La tabla 'logistica' existe en la BD y
+    la FK reserva.logistica_id apunta a ella.  Cuando se refactorizó a
+    herencia de una sola tabla, los usuarios nuevos de logística solo se
+    insertaban en 'usuario', nunca en 'logistica', rompiendo la FK.
+
+    Esta migración copia a 'logistica' los usuarios que ya existen en
+    'usuario' con rol='logistica' pero que aún no tienen fila en 'logistica'.
+    Es idempotente: puede ejecutarse varias veces sin daño.
+    """
+    if DATABASE_URL.startswith("sqlite"):
+        return  # Solo aplica a PostgreSQL
+
+    try:
+        with engine.connect() as conn:
+            # Verificar si la tabla logistica existe
+            existe = conn.execute(text("""
+                SELECT EXISTS (
+                    SELECT 1 FROM information_schema.tables
+                    WHERE table_name = 'logistica'
+                )
+            """)).scalar()
+
+            if not existe:
+                # Tabla nueva: create_all ya la creó con la estructura correcta
+                print("[MIGRACIÓN PG] Tabla 'logistica' recién creada por create_all, nada que sincronizar.")
+                return
+
+            # Insertar en logistica los usuarios con rol='logistica' que faltan
+            result = conn.execute(text("""
+                INSERT INTO logistica (id)
+                SELECT u.id
+                FROM usuario u
+                LEFT JOIN logistica l ON l.id = u.id
+                WHERE u.rol = 'logistica'
+                  AND l.id IS NULL
+                ON CONFLICT DO NOTHING
+            """))
+            conn.commit()
+            filas = result.rowcount
+            if filas > 0:
+                print(f"[MIGRACIÓN PG] {filas} usuario(s) de logística sincronizados a tabla 'logistica'.")
+            else:
+                print("[MIGRACIÓN PG] Tabla 'logistica' ya estaba sincronizada.")
+    except Exception as e:
+        print(f"[MIGRACIÓN PG] Error: {e}")
 
 
 # ─────────────────────────────────────────────

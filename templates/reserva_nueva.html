@@ -526,6 +526,13 @@ const espacioSel = document.getElementById("espacioSel");
 const hoy = new Date();
 fechaInput.min = `${hoy.getFullYear()}-${String(hoy.getMonth()+1).padStart(2,'0')}-${String(hoy.getDate()).padStart(2,'0')}`;
 
+// Cargar fechas bloqueadas desde el servidor (una sola vez)
+let FECHAS_BLOQUEADAS = new Set();
+fetch("/api/fechas-bloqueadas")
+  .then(r => r.json())
+  .then(arr => { FECHAS_BLOQUEADAS = new Set(arr); })
+  .catch(() => {});
+
 function actualizarFecha() {
   const val  = fechaInput.value;
   const dia  = getDia(val);
@@ -540,6 +547,16 @@ function actualizarFecha() {
   if (!val) {
     diaAviso.style.display = "none";
     pickerActivo = false;
+    renderChips();
+    return;
+  }
+
+  // ── Verificar fecha bloqueada por admin ──────────────────
+  if (FECHAS_BLOQUEADAS.has(val)) {
+    diaAviso.style.cssText = "display:block;margin-top:.4rem;font-size:.82rem;padding:.4rem .7rem;border-radius:6px;background:#fdecea;color:#8b1a1a;border:1px solid #dc3545;";
+    diaAviso.innerHTML = `🚫 <strong>Fecha bloqueada</strong> — el administrador ha bloqueado este día. Elige otra fecha.`;
+    pickerActivo = false;
+    document.getElementById("tpPhase").textContent = "Fecha bloqueada por el administrador";
     renderChips();
     return;
   }

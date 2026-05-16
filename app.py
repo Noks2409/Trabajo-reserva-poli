@@ -11,7 +11,7 @@ import bcrypt
 import traceback
 from database import (crear_base_de_datos, Session as DBSession, Usuario, Admin,
                        Docente, Administrativo, PersonaExterna, CONFLICTOS,
-                       PersonaExternaReserva, PersonalLogistica)
+                       PersonaExternaReserva, PersonalLogistica, FechaBloqueada)
 from datetime import date, timedelta, datetime, time as dtime
 from itsdangerous import URLSafeTimedSerializer
 import os
@@ -353,7 +353,13 @@ def limitar_personal_logistica():
 
 
 def reserva_aprobada_para_logistica(reserva):
-    return bool(reserva and (reserva.estado or "").lower() in ESTADOS_APROBADOS_LOGISTICA)
+    if not reserva:
+        return False
+    if (reserva.estado or "").lower() not in ESTADOS_APROBADOS_LOGISTICA:
+        return False
+    if reserva.fecha < date.today():
+        return False
+    return True
 
 
 @app.route("/")
@@ -882,6 +888,10 @@ def dia_bloqueado(fecha, hora_inicio, hora_fin):
                 return True
     return False
 
+def fecha_esta_bloqueada(fecha):
+    """Verifica si una fecha fue bloqueada manualmente por un administrador."""
+    return db.query(FechaBloqueada).filter_by(fecha=fecha).first() is not None
+
 # ── Aplicar restricciones horarias por defecto (caso de uso 8) ────────────
 
 @app.route("/admin/agenda/<int:aid>/aplicar-restricciones", methods=["POST"])
@@ -1133,6 +1143,8 @@ def reserva_nueva():
                         flash(e, "danger")
                 elif dia_bloqueado(fecha, hora_inicio, hora_fin):
                     flash("Ese horario está bloqueado en la agenda semestral.", "danger")
+                elif fecha_esta_bloqueada(fecha):
+                    flash("Esa fecha está bloqueada por el administrador y no admite reservas.", "danger")
                 elif not espacio.consultar_disponibilidad(db, fecha, hora_inicio, hora_fin):
                     flash("El espacio no está disponible en ese horario.", "danger")
                 elif int(cant_personas) > espacio.capacidad:
@@ -1376,7 +1388,7 @@ def admin_asignar_logistica(rid):
         return redirect(url_for("admin_historial"))
 
     if not reserva_aprobada_para_logistica(reserva):
-        flash("Solo puedes asignar logistica a reservas aprobadas o aceptadas.", "warning")
+        flash("Solo puedes asignar logística a reservas aprobadas con fecha futura.", "warning")
         return redirect(url_for("admin_historial"))
 
     personal = (
@@ -1710,6 +1722,10 @@ def admin_crear_reserva():
             duracion = _dt.combine(fecha, hora_fin) - _dt.combine(fecha, hora_inicio)
             if duracion.total_seconds() > 4 * 3600:
                 flash("Una reserva no puede exceder 4 horas de duración.", "danger")
+                return render_template("admin_crear_reserva.html", usuario=u,
+                                       espacios=espacios, usuarios_lista=usuarios_lista)
+            if fecha_esta_bloqueada(fecha):
+                flash("Esa fecha está bloqueada por el administrador y no admite reservas.", "danger")
                 return render_template("admin_crear_reserva.html", usuario=u,
                                        espacios=espacios, usuarios_lista=usuarios_lista)
             try:
@@ -2179,6 +2195,64 @@ def admin_responder_calificacion(cid):
         flash("Error al guardar la respuesta.", "danger")
 
     return redirect(url_for("admin_calificaciones"))
+
+
+# ── Fechas Bloqueadas ──────────────────────────────────────────────────────
+
+@app.route("/admin/fechas-bloqueadas")
+@requiere_login
+@requiere_admin
+def admin_fechas_bloqueadas():
+    u = usuario_logueado()
+    fechas = db.query(FechaBloqueada).order_by(FechaBloqueada.fecha.asc()).all()
+    return render_template("admin_fechas_bloqueadas.html", usuario=u, fechas=fechas)
+
+
+@app.route("/admin/fechas-bloqueadas/nueva", methods=["POST"])
+@requiere_login
+@requiere_admin
+def admin_fecha_bloqueada_nueva():
+    u = usuario_logueado()
+    fecha_str = request.form.get("fecha", "").strip()
+    motivo    = request.form.get("motivo", "").strip() or None
+    try:
+        fecha = datetime.strptime(fecha_str, "%Y-%m-%d").date()
+        existente = db.query(FechaBloqueada).filter_by(fecha=fecha).first()
+        if existente:
+            flash(f"La fecha {fecha.strftime('%d/%m/%Y')} ya está bloqueada.", "warning")
+        else:
+            fb = FechaBloqueada(fecha=fecha, motivo=motivo, admin_id=u.id)
+            db.add(fb)
+            db.commit()
+            flash(f"Fecha {fecha.strftime('%d/%m/%Y')} bloqueada correctamente.", "success")
+    except Exception as e:
+        db.rollback()
+        flash(f"Error al bloquear la fecha: {e}", "danger")
+    return redirect(url_for("admin_fechas_bloqueadas"))
+
+
+@app.route("/admin/fechas-bloqueadas/<int:fid>/eliminar", methods=["POST"])
+@requiere_login
+@requiere_admin
+def admin_fecha_bloqueada_eliminar(fid):
+    fb = db.get(FechaBloqueada, fid)
+    if not fb:
+        flash("Fecha no encontrada.", "danger")
+    else:
+        fecha_str = fb.fecha.strftime("%d/%m/%Y")
+        db.delete(fb)
+        db.commit()
+        flash(f"Fecha {fecha_str} desbloqueada correctamente.", "success")
+    return redirect(url_for("admin_fechas_bloqueadas"))
+
+
+@app.route("/api/fechas-bloqueadas")
+@requiere_login
+def api_fechas_bloqueadas():
+    """Devuelve las fechas bloqueadas en JSON para el frontend."""
+    from flask import jsonify
+    fechas = db.query(FechaBloqueada).all()
+    return jsonify([str(f.fecha) for f in fechas])
 
 
 if __name__ == "__main__":
