@@ -1,0 +1,214 @@
+{% extends "base.html" %}
+{% block title %}Reportes de Reservas{% endblock %}
+{% block content %}
+<div class="page-header">
+  <h1>📊 Reportes de Reservas</h1>
+  <p>Estadísticas históricas: por semestre, año, usuarios, horarios y salones</p>
+</div>
+
+<!-- Exportar -->
+<div style="display:flex; gap:.75rem; flex-wrap:wrap; margin-bottom:1.5rem; justify-content:flex-end;">
+  <a href="{{ url_for('admin_exportar_csv_reservas') }}" class="btn btn-navy">⬇️ Exportar Reservas CSV</a>
+  <a href="{{ url_for('admin_exportar_csv_ranking') }}" class="btn btn-secondary">⬇️ Exportar Ranking CSV</a>
+</div>
+
+<!-- Estadísticas globales -->
+<div class="grid grid-3" style="margin-bottom:1.5rem;">
+  <div class="card stat stat-accent">
+    <div class="stat-icon">📋</div>
+    <div class="stat-value">{{ total_reservas }}</div>
+    <div class="stat-label">Total histórico de reservas</div>
+  </div>
+  <div class="card stat stat-accent">
+    <div class="stat-icon">✅</div>
+    <div class="stat-value" style="color:var(--success);">{{ total_aprobadas }}</div>
+    <div class="stat-label">Confirmadas</div>
+  </div>
+  <div class="card stat stat-accent">
+    <div class="stat-icon">⏳</div>
+    <div class="stat-value" style="color:var(--warning);">{{ total_pend }}</div>
+    <div class="stat-label">En revisión</div>
+  </div>
+  <div class="card stat stat-accent">
+    <div class="stat-icon">❌</div>
+    <div class="stat-value" style="color:var(--danger);">{{ total_rechaz }}</div>
+    <div class="stat-label">Rechazadas</div>
+  </div>
+  <div class="card stat stat-accent">
+    <div class="stat-icon">🚫</div>
+    <div class="stat-value" style="color:var(--muted);">{{ total_cancel }}</div>
+    <div class="stat-label">Canceladas</div>
+  </div>
+  {% if total_reservas > 0 %}
+  <div class="card stat stat-accent">
+    <div class="stat-icon">📈</div>
+    <div class="stat-value">{{ ((total_aprobadas / total_reservas) * 100) | round(1) }}%</div>
+    <div class="stat-label">Tasa de aprobación</div>
+  </div>
+  {% endif %}
+</div>
+
+<div class="grid grid-2" style="margin-bottom:1.5rem;">
+
+  <!-- Por año -->
+  <div class="card">
+    <div class="card-title">📅 Reservas por año</div>
+    {% if por_anio %}
+    <table>
+      <thead><tr><th>Año</th><th>Total reservas</th><th>Participación</th></tr></thead>
+      <tbody>
+        {% for anio, total in por_anio.items() %}
+        <tr>
+          <td><strong>{{ anio }}</strong></td>
+          <td>{{ total }}</td>
+          <td>
+            <div style="display:flex; align-items:center; gap:.5rem;">
+              <div style="flex:1; background:var(--border); border-radius:4px; height:8px;">
+                <div style="width:{{ ((total / total_reservas) * 100)|round }}%; background:var(--cyan); border-radius:4px; height:8px;"></div>
+              </div>
+              <span style="font-size:.78rem; color:var(--muted); min-width:36px;">{{ ((total / total_reservas) * 100)|round(1) }}%</span>
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <p style="color:var(--muted); text-align:center; padding:1rem 0;">Sin datos.</p>
+    {% endif %}
+  </div>
+
+  <!-- Por semestre -->
+  <div class="card">
+    <div class="card-title">🗓️ Reservas por semestre</div>
+    {% if por_semestre %}
+    <table>
+      <thead><tr><th>Semestre</th><th>Total reservas</th><th>Participación</th></tr></thead>
+      <tbody>
+        {% set max_sem = por_semestre.values() | max %}
+        {% for sem, total in por_semestre.items() %}
+        <tr>
+          <td>
+            <strong>{{ sem }}</strong><br>
+            <span style="font-size:.75rem; color:var(--muted);">
+              {% if sem.endswith('-1') %}Ene – Jun{% else %}Jul – Dic{% endif %}
+            </span>
+          </td>
+          <td>{{ total }}</td>
+          <td>
+            <div style="display:flex; align-items:center; gap:.5rem;">
+              <div style="flex:1; background:var(--border); border-radius:4px; height:8px;">
+                <div style="width:{{ ((total / max_sem) * 100)|round }}%; background:var(--navy); border-radius:4px; height:8px;"></div>
+              </div>
+              <span style="font-size:.78rem; color:var(--muted); min-width:36px;">{{ total }}</span>
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <p style="color:var(--muted); text-align:center; padding:1rem 0;">Sin datos.</p>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Por mes -->
+{% if por_mes %}
+<div class="card" style="margin-bottom:1.5rem;">
+  <div class="card-title">📆 Reservas por mes</div>
+  {% set max_mes = por_mes.values() | max %}
+  <div style="overflow-x:auto;">
+    <div style="display:flex; gap:.5rem; align-items:flex-end; min-width:600px; padding:.5rem 0;">
+      {% for mes, total in por_mes.items() %}
+      <div style="flex:1; display:flex; flex-direction:column; align-items:center; gap:.3rem;">
+        <span style="font-size:.75rem; font-weight:700; color:var(--navy);">{{ total }}</span>
+        <div style="width:100%; background:var(--cyan); border-radius:4px 4px 0 0; height:{{ [((total / max_mes) * 120)|round, 8]|max }}px; min-height:8px;"></div>
+        <span style="font-size:.65rem; color:var(--muted); text-align:center; transform:rotate(-35deg); display:block; white-space:nowrap; margin-top:.3rem;">{{ mes }}</span>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<div class="grid grid-2" style="margin-bottom:1.5rem;">
+
+  <!-- Usuarios que más reservan -->
+  <div class="card">
+    <div class="card-title">👥 Usuarios que más reservan (Top 10)</div>
+    {% if top_usuarios %}
+    <table>
+      <thead><tr><th>#</th><th>Usuario</th><th>Rol</th><th>Total</th></tr></thead>
+      <tbody>
+        {% for u_data in top_usuarios %}
+        <tr>
+          <td style="font-weight:800; color:{% if loop.index == 1 %}#f5a623{% elif loop.index == 2 %}#9e9e9e{% elif loop.index == 3 %}#cd7f32{% else %}var(--muted){% endif %};">
+            {{ loop.index }}
+          </td>
+          <td><strong>{{ u_data.nombre }}</strong></td>
+          <td>
+            <span class="pill pill-{{ u_data.rol }}">{{ u_data.rol }}</span>
+          </td>
+          <td>
+            <strong style="color:var(--navy);">{{ u_data.total }}</strong>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <p style="color:var(--muted); text-align:center; padding:1rem 0;">Sin datos.</p>
+    {% endif %}
+  </div>
+
+  <!-- Salones más reservados -->
+  <div class="card">
+    <div class="card-title">🏛️ Salones más reservados</div>
+    {% if top_espacios %}
+    {% set max_esp = top_espacios | map(attribute=1) | max %}
+    <table>
+      <thead><tr><th>#</th><th>Espacio</th><th>Reservas</th></tr></thead>
+      <tbody>
+        {% for nombre, total in top_espacios %}
+        <tr>
+          <td style="font-weight:800; color:{% if loop.index == 1 %}#f5a623{% elif loop.index == 2 %}#9e9e9e{% elif loop.index == 3 %}#cd7f32{% else %}var(--muted){% endif %};">
+            {{ loop.index }}
+          </td>
+          <td><strong>{{ nombre }}</strong></td>
+          <td>
+            <div style="display:flex; align-items:center; gap:.5rem;">
+              <div style="width:80px; background:var(--border); border-radius:4px; height:8px;">
+                <div style="width:{{ ((total / max_esp) * 100)|round }}%; background:var(--cyan); border-radius:4px; height:8px;"></div>
+              </div>
+              <span style="font-weight:700; color:var(--navy);">{{ total }}</span>
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <p style="color:var(--muted); text-align:center; padding:1rem 0;">Sin datos.</p>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Horarios más reservados -->
+{% if top_horarios %}
+<div class="card" style="margin-bottom:1.5rem;">
+  <div class="card-title">⏰ Horarios de inicio más reservados</div>
+  {% set max_hora = top_horarios | map(attribute=1) | max %}
+  <div style="display:flex; gap:1rem; flex-wrap:wrap; align-items:flex-end; padding:.5rem 0;">
+    {% for hora, total in top_horarios %}
+    <div style="display:flex; flex-direction:column; align-items:center; gap:.3rem; min-width:70px;">
+      <span style="font-size:.78rem; font-weight:700; color:var(--navy);">{{ total }}</span>
+      <div style="width:48px; background:var(--navy); border-radius:4px 4px 0 0; height:{{ [((total / max_hora) * 100)|round, 8]|max }}px; min-height:8px;"></div>
+      <span style="font-size:.78rem; font-weight:700; color:var(--muted);">{{ hora }}</span>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
+{% endblock %}

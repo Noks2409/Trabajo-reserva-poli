@@ -1,0 +1,196 @@
+{% extends "base.html" %}
+{% block title %}Reportes de Calificaciones{% endblock %}
+{% block content %}
+<div class="page-header">
+  <h1>⭐ Reportes de Calificaciones</h1>
+  <p>Historial, promedios, tendencias y comparación entre períodos</p>
+</div>
+
+<!-- Exportar -->
+<div style="display:flex; gap:.75rem; flex-wrap:wrap; margin-bottom:1.5rem; justify-content:flex-end;">
+  <a href="{{ url_for('admin_exportar_csv_calificaciones') }}" class="btn btn-navy">⬇️ Exportar Calificaciones CSV</a>
+</div>
+
+<!-- Estadísticas globales -->
+<div class="grid grid-3" style="margin-bottom:1.5rem;">
+  <div class="card stat stat-accent">
+    <div class="stat-icon">⭐</div>
+    <div class="stat-value">{{ total_cals }}</div>
+    <div class="stat-label">Total calificaciones históricas</div>
+  </div>
+  <div class="card stat stat-accent">
+    <div class="stat-icon">📊</div>
+    <div class="stat-value" style="color:{% if promedio_global and promedio_global >= 4 %}var(--success){% elif promedio_global and promedio_global >= 3 %}var(--warning){% else %}var(--danger){% endif %};">
+      {{ promedio_global if promedio_global else '—' }}
+    </div>
+    <div class="stat-label">Promedio global (sobre 5)</div>
+  </div>
+  <div class="card stat stat-accent">
+    <div class="stat-icon">🏆</div>
+    <div class="stat-value" style="color:#f5a623;">
+      {% set cinco = dist_estrellas.get(5, 0) %}
+      {{ cinco }}
+    </div>
+    <div class="stat-label">Calificaciones de 5 estrellas</div>
+  </div>
+</div>
+
+<!-- Distribución de estrellas -->
+<div class="card" style="margin-bottom:1.5rem;">
+  <div class="card-title">⭐ Distribución de estrellas</div>
+  {% if total_cals > 0 %}
+  <div style="display:flex; flex-direction:column; gap:.6rem;">
+    {% for estrellas in [5, 4, 3, 2, 1] %}
+    {% set cant = dist_estrellas.get(estrellas, 0) %}
+    {% set pct = ((cant / total_cals) * 100) | round(1) %}
+    <div style="display:flex; align-items:center; gap:.75rem;">
+      <span style="min-width:80px; font-size:.85rem; color:#f5a623; font-weight:700;">
+        {{ estrellas }} ★{% for i in range(5 - estrellas) %}<span style="color:#ddd;">★</span>{% endfor %}
+      </span>
+      <div style="flex:1; background:var(--border); border-radius:4px; height:12px;">
+        <div style="width:{{ pct }}%; background:{% if estrellas >= 4 %}#28a745{% elif estrellas == 3 %}#e6a817{% else %}#dc3545{% endif %}; border-radius:4px; height:12px; transition:width .3s;"></div>
+      </div>
+      <span style="min-width:70px; font-size:.82rem; color:var(--muted); text-align:right;">{{ cant }} ({{ pct }}%)</span>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <p style="color:var(--muted); text-align:center; padding:1rem 0;">Sin calificaciones registradas.</p>
+  {% endif %}
+</div>
+
+<!-- Tendencia mensual -->
+{% if tendencia %}
+<div class="card" style="margin-bottom:1.5rem;">
+  <div class="card-title">📈 Tendencia mensual de calificaciones</div>
+  <div style="overflow-x:auto;">
+    <table>
+      <thead>
+        <tr>
+          <th>Mes</th>
+          <th>Promedio</th>
+          <th>Cantidad</th>
+          <th>Variación vs mes anterior</th>
+          <th>Nivel</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for item in tendencia %}
+        <tr>
+          <td><strong>{{ item.mes }}</strong></td>
+          <td>
+            <span style="font-size:1rem; color:#f5a623;">
+              {% for i in range(item.promedio | round | int) %}★{% endfor %}{% for i in range(5 - (item.promedio | round | int)) %}<span style="color:#ddd;">★</span>{% endfor %}
+            </span>
+            <strong style="margin-left:.3rem;">{{ item.promedio }}</strong>
+          </td>
+          <td>{{ item.total }}</td>
+          <td>
+            {% if item.delta is none %}
+              <span style="color:var(--muted); font-size:.8rem;">—</span>
+            {% elif item.delta > 0 %}
+              <span style="color:var(--success); font-weight:700;">▲ +{{ item.delta }}</span>
+            {% elif item.delta < 0 %}
+              <span style="color:var(--danger); font-weight:700;">▼ {{ item.delta }}</span>
+            {% else %}
+              <span style="color:var(--muted);">= sin cambio</span>
+            {% endif %}
+          </td>
+          <td>
+            {% if item.promedio >= 4.5 %}
+              <span class="pill" style="background:#eaf7ee; color:#1a6630;">Excelente</span>
+            {% elif item.promedio >= 3.5 %}
+              <span class="pill" style="background:#e0f7fc; color:#005f73;">Bueno</span>
+            {% elif item.promedio >= 2.5 %}
+              <span class="pill" style="background:#fff8e1; color:#7a5c00;">Regular</span>
+            {% else %}
+              <span class="pill" style="background:#fdecea; color:#8b1a1a;">Bajo</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
+<div class="grid grid-2" style="margin-bottom:1.5rem;">
+
+  <!-- Por semestre -->
+  <div class="card">
+    <div class="card-title">🗓️ Comparación por semestre</div>
+    {% if por_semestre %}
+    <table>
+      <thead><tr><th>Semestre</th><th>Promedio ★</th><th>Cantidad</th></tr></thead>
+      <tbody>
+        {% for sem, datos in por_semestre.items() %}
+        <tr>
+          <td>
+            <strong>{{ sem }}</strong><br>
+            <span style="font-size:.75rem; color:var(--muted);">
+              {% if sem.endswith('-1') %}Ene – Jun{% else %}Jul – Dic{% endif %}
+            </span>
+          </td>
+          <td>
+            <span style="color:#f5a623; font-size:.9rem;">
+              {% for i in range(datos.promedio | round | int) %}★{% endfor %}
+            </span>
+            <strong style="margin-left:.3rem;">{{ datos.promedio }}</strong>
+          </td>
+          <td>{{ datos.total }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <p style="color:var(--muted); text-align:center; padding:1rem 0;">Sin datos.</p>
+    {% endif %}
+  </div>
+
+  <!-- Por año -->
+  <div class="card">
+    <div class="card-title">📅 Comparación por año</div>
+    {% if por_anio %}
+    <table>
+      <thead><tr><th>Año</th><th>Promedio ★</th><th>Cantidad</th></tr></thead>
+      <tbody>
+        {% for anio, datos in por_anio.items() %}
+        <tr>
+          <td><strong>{{ anio }}</strong></td>
+          <td>
+            <span style="color:#f5a623; font-size:.9rem;">
+              {% for i in range(datos.promedio | round | int) %}★{% endfor %}
+            </span>
+            <strong style="margin-left:.3rem;">{{ datos.promedio }}</strong>
+          </td>
+          <td>{{ datos.total }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <p style="color:var(--muted); text-align:center; padding:1rem 0;">Sin datos.</p>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Promedios por espacio -->
+{% if por_espacio %}
+<div class="card" style="margin-bottom:1.5rem;">
+  <div class="card-title">🏛️ Promedio de calificación por espacio</div>
+  <div style="display:flex; flex-wrap:wrap; gap:1rem;">
+    {% for espacio, prom in por_espacio.items() %}
+    <div style="flex:1; min-width:180px; background:var(--gray-bg); border-radius:8px; padding:1rem; text-align:center; border:1.5px solid var(--border);">
+      <div style="font-weight:700; color:var(--navy); font-family:'Nunito',sans-serif; margin-bottom:.4rem;">{{ espacio }}</div>
+      <div style="font-size:1.5rem; color:#f5a623;">
+        {% for i in range(prom | round | int) %}★{% endfor %}{% for i in range(5 - (prom | round | int)) %}<span style="color:#ddd;">★</span>{% endfor %}
+      </div>
+      <div style="font-size:1.1rem; font-weight:800; color:var(--navy); margin-top:.3rem;">{{ prom }} / 5</div>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
+{% endblock %}

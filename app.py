@@ -15,6 +15,9 @@ from database import (crear_base_de_datos, Session as DBSession, Usuario, Admin,
 from datetime import date, timedelta, datetime, time as dtime
 from itsdangerous import URLSafeTimedSerializer
 import os
+import csv
+import io
+from collections import defaultdict
 
 app = Flask(__name__)
 app.secret_key = "clave_secreta_reservas_2025"
@@ -2253,6 +2256,329 @@ def api_fechas_bloqueadas():
     from flask import jsonify
     fechas = db.query(FechaBloqueada).all()
     return jsonify([str(f.fecha) for f in fechas])
+
+
+# ══════════════════════════════════════════════════════════════════════════
+#  REPORTES — Admin (Sprint 8)
+# ══════════════════════════════════════════════════════════════════════════
+
+def _semestre_de_fecha(fecha):
+    """Retorna '2025-1' si la fecha es enero-junio, '2025-2' si es julio-dic."""
+    s = 1 if fecha.month <= 6 else 2
+    return f"{fecha.year}-{s}"
+
+def _mes_label(year, month):
+    meses = ["Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"]
+    return f"{meses[month-1]} {year}"
+
+
+@app.route("/admin/reportes/reservas")
+@requiere_login
+@requiere_admin
+def admin_reportes_reservas():
+    """Estadísticas históricas de reservas: por semestre, año, usuario, horario y espacio."""
+    u = usuario_logueado()
+
+    todas = db.query(Reserva).order_by(Reserva.fecha.asc()).all()
+
+    # ── Por año ──────────────────────────────────────────────────────────
+    por_anio = defaultdict(int)
+    for r in todas:
+        por_anio[r.fecha.year] += 1
+    por_anio = dict(sorted(por_anio.items()))
+
+    # ── Por semestre ──────────────────────────────────────────────────────
+    por_semestre = defaultdict(int)
+    for r in todas:
+        por_semestre[_semestre_de_fecha(r.fecha)] += 1
+    por_semestre = dict(sorted(por_semestre.items()))
+
+    # ── Por mes (últimos 12 meses) ────────────────────────────────────────
+    por_mes = defaultdict(int)
+    for r in todas:
+        clave = (r.fecha.year, r.fecha.month)
+        por_mes[clave] += 1
+    por_mes = {_mes_label(k[0], k[1]): v for k, v in sorted(por_mes.items())}
+
+    # ── Usuarios que más reservan (top 10) ────────────────────────────────
+    conteo_usuario = defaultdict(int)
+    nombre_usuario = {}
+    rol_usuario = {}
+    for r in todas:
+        if r.usuario:
+            conteo_usuario[r.usuario_id] += 1
+            nombre_usuario[r.usuario_id] = r.usuario.nombre
+            rol_usuario[r.usuario_id] = r.usuario.rol
+    top_usuarios = sorted(conteo_usuario.items(), key=lambda x: x[1], reverse=True)[:10]
+    top_usuarios = [
+        {"nombre": nombre_usuario[uid], "rol": rol_usuario[uid], "total": total}
+        for uid, total in top_usuarios
+    ]
+
+    # ── Horarios más reservados ────────────────────────────────────────────
+    conteo_horario = defaultdict(int)
+    for r in todas:
+        if r.hora_inicio:
+            conteo_horario[r.hora_inicio.strftime("%H:%M")] += 1
+    top_horarios = sorted(conteo_horario.items(), key=lambda x: x[1], reverse=True)[:8]
+
+    # ── Salones más reservados ────────────────────────────────────────────
+    conteo_espacio = defaultdict(int)
+    for r in todas:
+        for e in r.espacios:
+            conteo_espacio[e.nombre] += 1
+    top_espacios = sorted(conteo_espacio.items(), key=lambda x: x[1], reverse=True)
+
+    # ── Estados globales ──────────────────────────────────────────────────
+    total_reservas  = len(todas)
+    total_aprobadas = sum(1 for r in todas if r.estado == "aprobada")
+    total_pend      = sum(1 for r in todas if r.estado == "pendiente")
+    total_rechaz    = sum(1 for r in todas if r.estado == "rechazada")
+    total_cancel    = sum(1 for r in todas if r.estado == "cancelada")
+
+    return render_template(
+        "admin_reportes_reservas.html",
+        usuario=u,
+        total_reservas=total_reservas,
+        total_aprobadas=total_aprobadas,
+        total_pend=total_pend,
+        total_rechaz=total_rechaz,
+        total_cancel=total_cancel,
+        por_anio=por_anio,
+        por_semestre=por_semestre,
+        por_mes=por_mes,
+        top_usuarios=top_usuarios,
+        top_horarios=top_horarios,
+        top_espacios=top_espacios,
+    )
+
+
+@app.route("/admin/reportes/calificaciones")
+@requiere_login
+@requiere_admin
+def admin_reportes_calificaciones():
+    """Estadísticas históricas de calificaciones: promedios, tendencias, comparación por período."""
+    u = usuario_logueado()
+
+    todas = (
+        db.query(Calificacion)
+        .join(Calificacion.reserva)
+        .order_by(Calificacion.fecha.asc())
+        .all()
+    )
+
+    # ── Promedio global ───────────────────────────────────────────────────
+    promedio_global = round(sum(c.puntuacion for c in todas) / len(todas), 2) if todas else None
+
+    # ── Distribución de estrellas ─────────────────────────────────────────
+    dist_estrellas = {i: 0 for i in range(1, 6)}
+    for c in todas:
+        dist_estrellas[c.puntuacion] = dist_estrellas.get(c.puntuacion, 0) + 1
+
+    # ── Promedio y conteo por mes ─────────────────────────────────────────
+    mes_sumas   = defaultdict(list)
+    for c in todas:
+        clave = (c.fecha.year, c.fecha.month)
+        mes_sumas[clave].append(c.puntuacion)
+    por_mes = {
+        _mes_label(k[0], k[1]): {
+            "promedio": round(sum(v) / len(v), 2),
+            "total": len(v)
+        }
+        for k, v in sorted(mes_sumas.items())
+    }
+
+    # ── Promedio por semestre ─────────────────────────────────────────────
+    sem_sumas = defaultdict(list)
+    for c in todas:
+        sem_sumas[_semestre_de_fecha(c.fecha)].append(c.puntuacion)
+    por_semestre = {
+        k: {"promedio": round(sum(v) / len(v), 2), "total": len(v)}
+        for k, v in sorted(sem_sumas.items())
+    }
+
+    # ── Promedio por año ──────────────────────────────────────────────────
+    anio_sumas = defaultdict(list)
+    for c in todas:
+        anio_sumas[c.fecha.year].append(c.puntuacion)
+    por_anio = {
+        k: {"promedio": round(sum(v) / len(v), 2), "total": len(v)}
+        for k, v in sorted(anio_sumas.items())
+    }
+
+    # ── Promedios por espacio ─────────────────────────────────────────────
+    esp_sumas = defaultdict(list)
+    for c in todas:
+        for e in c.reserva.espacios:
+            esp_sumas[e.nombre].append(c.puntuacion)
+    por_espacio = {
+        k: round(sum(v) / len(v), 2)
+        for k, v in sorted(esp_sumas.items())
+    }
+
+    # ── Tendencia: variación mes a mes ───────────────────────────────────
+    meses_lista = list(por_mes.items())  # [(label, {promedio, total}), ...]
+    tendencia = []
+    for i, (label, datos) in enumerate(meses_lista):
+        delta = None
+        if i > 0:
+            delta = round(datos["promedio"] - meses_lista[i-1][1]["promedio"], 2)
+        tendencia.append({"mes": label, "promedio": datos["promedio"], "total": datos["total"], "delta": delta})
+
+    return render_template(
+        "admin_reportes_calificaciones.html",
+        usuario=u,
+        total_cals=len(todas),
+        promedio_global=promedio_global,
+        dist_estrellas=dist_estrellas,
+        por_mes=por_mes,
+        por_semestre=por_semestre,
+        por_anio=por_anio,
+        por_espacio=por_espacio,
+        tendencia=tendencia,
+    )
+
+
+# ── EXPORTACIÓN CSV ────────────────────────────────────────────────────────
+
+@app.route("/admin/reportes/reservas/exportar-csv")
+@requiere_login
+@requiere_admin
+def admin_exportar_csv_reservas():
+    """Exporta todas las reservas históricas en formato CSV."""
+    reservas = db.query(Reserva).order_by(Reserva.fecha.desc()).all()
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow([
+        "ID", "Usuario", "Correo", "Rol", "Tipo de Evento", "Finalidad",
+        "Espacio(s)", "Fecha", "Hora Inicio", "Hora Fin",
+        "Estado", "Cant. Personas", "Servicios Adicionales", "Semestre"
+    ])
+    for r in reservas:
+        espacios_str = " | ".join(e.nombre for e in r.espacios)
+        writer.writerow([
+            r.id,
+            r.usuario.nombre if r.usuario else "",
+            r.usuario.correo if r.usuario else "",
+            r.usuario.rol if r.usuario else "",
+            r.tipo_evento,
+            r.finalidad or "",
+            espacios_str,
+            r.fecha.strftime("%Y-%m-%d"),
+            r.hora_inicio.strftime("%H:%M"),
+            r.hora_fin.strftime("%H:%M"),
+            r.estado,
+            r.cant_personas,
+            r.servicios_adicionales or "",
+            _semestre_de_fecha(r.fecha),
+        ])
+
+    output.seek(0)
+    resp = make_response(output.getvalue())
+    resp.headers["Content-Disposition"] = "attachment; filename=reporte_reservas.csv"
+    resp.headers["Content-Type"] = "text/csv; charset=utf-8-sig"
+    return resp
+
+
+@app.route("/admin/reportes/calificaciones/exportar-csv")
+@requiere_login
+@requiere_admin
+def admin_exportar_csv_calificaciones():
+    """Exporta todas las calificaciones históricas en formato CSV."""
+    cals = (
+        db.query(Calificacion)
+        .join(Calificacion.reserva)
+        .order_by(Calificacion.fecha.desc())
+        .all()
+    )
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow([
+        "ID Calificacion", "Fecha", "Puntuacion (1-5)", "Comentario",
+        "Respuesta Admin", "ID Reserva", "Tipo Evento", "Espacio(s)",
+        "Usuario", "Correo Usuario", "Semestre"
+    ])
+    for c in cals:
+        espacios_str = " | ".join(e.nombre for e in c.reserva.espacios)
+        writer.writerow([
+            c.id,
+            c.fecha.strftime("%Y-%m-%d"),
+            c.puntuacion,
+            c.comentario or "",
+            c.respuesta_admin or "",
+            c.reserva_id,
+            c.reserva.tipo_evento,
+            espacios_str,
+            c.reserva.usuario.nombre if c.reserva.usuario else "",
+            c.reserva.usuario.correo if c.reserva.usuario else "",
+            _semestre_de_fecha(c.fecha),
+        ])
+
+    output.seek(0)
+    resp = make_response(output.getvalue())
+    resp.headers["Content-Disposition"] = "attachment; filename=reporte_calificaciones.csv"
+    resp.headers["Content-Type"] = "text/csv; charset=utf-8-sig"
+    return resp
+
+
+@app.route("/admin/reportes/ranking/exportar-csv")
+@requiere_login
+@requiere_admin
+def admin_exportar_csv_ranking():
+    """Exporta el ranking completo de usuarios, espacios y horarios en CSV."""
+    todas = db.query(Reserva).all()
+
+    # Usuarios
+    conteo_u = defaultdict(int)
+    info_u = {}
+    for r in todas:
+        if r.usuario:
+            conteo_u[r.usuario_id] += 1
+            info_u[r.usuario_id] = (r.usuario.nombre, r.usuario.correo, r.usuario.rol)
+    ranking_usuarios = sorted(conteo_u.items(), key=lambda x: x[1], reverse=True)
+
+    # Espacios
+    conteo_e = defaultdict(int)
+    for r in todas:
+        for e in r.espacios:
+            conteo_e[e.nombre] += 1
+    ranking_espacios = sorted(conteo_e.items(), key=lambda x: x[1], reverse=True)
+
+    # Horarios
+    conteo_h = defaultdict(int)
+    for r in todas:
+        if r.hora_inicio:
+            conteo_h[r.hora_inicio.strftime("%H:%M")] += 1
+    ranking_horarios = sorted(conteo_h.items(), key=lambda x: x[1], reverse=True)
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+
+    writer.writerow(["=== RANKING DE USUARIOS ==="])
+    writer.writerow(["Posicion", "Nombre", "Correo", "Rol", "Total Reservas"])
+    for pos, (uid, total) in enumerate(ranking_usuarios, 1):
+        nombre, correo, rol = info_u[uid]
+        writer.writerow([pos, nombre, correo, rol, total])
+
+    writer.writerow([])
+    writer.writerow(["=== RANKING DE ESPACIOS ==="])
+    writer.writerow(["Posicion", "Espacio", "Total Reservas"])
+    for pos, (nombre, total) in enumerate(ranking_espacios, 1):
+        writer.writerow([pos, nombre, total])
+
+    writer.writerow([])
+    writer.writerow(["=== RANKING DE HORARIOS ==="])
+    writer.writerow(["Posicion", "Hora Inicio", "Total Reservas"])
+    for pos, (hora, total) in enumerate(ranking_horarios, 1):
+        writer.writerow([pos, hora, total])
+
+    output.seek(0)
+    resp = make_response(output.getvalue())
+    resp.headers["Content-Disposition"] = "attachment; filename=ranking_completo.csv"
+    resp.headers["Content-Type"] = "text/csv; charset=utf-8-sig"
+    return resp
 
 
 if __name__ == "__main__":
