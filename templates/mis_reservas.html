@@ -48,6 +48,13 @@
                          padding:.2rem .6rem; cursor:pointer;">
             👥 {{ r.personas_externas | length }} persona(s) externa(s)
           </button>
+          {% elif not ya_finalizo and r.estado in ['pendiente', 'aprobada'] %}
+          <button onclick="toggleExternas('ext-usr-{{ r.id }}')"
+                  style="margin-top:.35rem; background:none; border:1px dashed var(--cyan-dark);
+                         color:var(--cyan-dark); border-radius:20px; font-size:.72rem;
+                         padding:.2rem .6rem; cursor:pointer;">
+            📊 Subir personas externas
+          </button>
           {% endif %}
         </td>
         <td>{{ r.espacios[0].nombre if r.espacios else '—' }}</td>
@@ -137,6 +144,39 @@
               {% endfor %}
             </tbody>
           </table>
+          {% if not ya_finalizo and r.estado in ['pendiente', 'aprobada'] %}
+          <details style="margin-top:.75rem;">
+            <summary style="font-size:.78rem; color:var(--cyan-dark); cursor:pointer; font-weight:700;">
+              📊 Agregar más personas desde Excel
+            </summary>
+            <form method="POST" action="{{ url_for('personas_externas_excel', rid=r.id) }}"
+                  enctype="multipart/form-data"
+                  style="display:flex; align-items:center; gap:.6rem; margin-top:.5rem; flex-wrap:wrap;">
+              <input type="file" name="archivo_excel" accept=".xlsx,.xls,.csv" required
+                     style="font-size:.8rem; color:var(--text);"/>
+              <button type="submit" class="btn btn-primary btn-sm">⬆️ Subir</button>
+            </form>
+          </details>
+          {% endif %}
+        </td>
+      </tr>
+      {% elif not ya_finalizo and r.estado in ['pendiente', 'aprobada'] %}
+      <tr id="ext-usr-{{ r.id }}" style="display:none; background:#f8fbff;">
+        <td colspan="9" style="padding:.75rem 1.25rem;">
+          <div style="font-size:.8rem; font-weight:700; color:var(--cyan-dark); margin-bottom:.5rem;">
+            👥 Agregar personas externas — Reserva #{{ r.id }}
+          </div>
+          <p style="font-size:.8rem; color:var(--muted); margin-bottom:.6rem;">
+            El archivo debe tener columnas en este orden:
+            <strong>nombre, cedula, fecha_ingreso, fecha_salida</strong> (primera fila = encabezado).
+          </p>
+          <form method="POST" action="{{ url_for('personas_externas_excel', rid=r.id) }}"
+                enctype="multipart/form-data"
+                style="display:flex; align-items:center; gap:.6rem; flex-wrap:wrap;">
+            <input type="file" name="archivo_excel" accept=".xlsx,.xls,.csv" required
+                   style="font-size:.8rem; color:var(--text);"/>
+            <button type="submit" class="btn btn-primary btn-sm">⬆️ Subir Excel</button>
+          </form>
         </td>
       </tr>
       {% endif %}

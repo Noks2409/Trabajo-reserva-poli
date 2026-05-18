@@ -4,8 +4,8 @@ Módulo de autenticación + gestión de perfil + frontend por rol
 """
 
 from asyncio import coroutines
-from asyncio import coroutines
 from flask import Flask, render_template, request, redirect, url_for, session, flash, make_response, jsonify
+from sqlalchemy.exc import OperationalError as DBOperationalError
 from flask_mail import Mail, Message
 import bcrypt
 import traceback
@@ -257,9 +257,72 @@ db = DBSession()
 
 ESTADOS_APROBADOS_LOGISTICA = {"aprobada", "aprobado", "aceptada", "aceptado", "confirmada", "confirmado"}
 
+def proteger_db(f):
+    """Decorador que envuelve cualquier ruta con manejo de errores de conexión DB.
+    Si SQLAlchemy pierde la conexión SSL en medio de la ruta, limpia la sesión
+    y muestra un mensaje amigable en lugar de un 500.
+    """
+    from functools import wraps
+    @wraps(f)
+    def wrapper(*args, **kwargs):
+        try:
+            return f(*args, **kwargs)
+        except DBOperationalError:
+            try:
+                db.rollback()
+            except Exception:
+                pass
+            DBSession.remove()
+            flash("Error de conexión con la base de datos. Por favor recarga la página.", "danger")
+            return redirect(request.referrer or url_for("dashboard"))
+    return wrapper
+
 @app.teardown_appcontext
 def shutdown_session(exception=None):
     DBSession.remove()
+
+@app.before_request
+def refrescar_conexion_db():
+    """En Vercel/serverless la conexión SSL puede quedar muerta entre requests.
+    Hacemos rollback al inicio de cada request para liberar cualquier
+    conexión stale y forzar una reconexión limpia en la siguiente query."""
+    try:
+        db.rollback()
+    except Exception:
+        DBSession.remove()
+
+@app.errorhandler(DBOperationalError)
+def handle_db_operational_error(e):
+    """Captura errores de conexión SSL/PostgreSQL que no fueron atrapados en la ruta.
+    Limpia la sesión muerta, muestra mensaje amigable y redirige."""
+    try:
+        db.rollback()
+    except Exception:
+        pass
+    DBSession.remove()
+    flash("Error de conexión con la base de datos. Por favor recarga la página.", "danger")
+    destino = request.referrer or url_for("dashboard")
+    return redirect(destino)
+
+@app.errorhandler(500)
+def handle_500(e):
+    """Captura errores internos genéricos; limpia la sesión DB por si acaso."""
+    try:
+        db.rollback()
+        DBSession.remove()
+    except Exception:
+        pass
+    return render_template("500.html"), 500
+
+def db_safe(fn, *args, **kwargs):
+    """Ejecuta fn() con retry automático si la conexión SSL se cayó.
+    Uso: resultado = db_safe(lambda: db.query(Reserva).all())
+    """
+    try:
+        return fn(*args, **kwargs)
+    except DBOperationalError:
+        DBSession.remove()
+        return fn(*args, **kwargs)
 
 @app.after_request
 def agregar_headers_no_cache(response):
@@ -307,9 +370,17 @@ def reserva_ha_finalizado(reserva):
 def usuario_logueado():
     """Retorna el objeto Usuario si hay sesión activa, o None."""
     uid = session.get("usuario_id")
-    if uid:
+    if not uid:
+        return None
+    try:
         return db.get(Usuario, uid)
-    return None
+    except Exception:
+        # Conexión SSL muerta (común en Vercel tras inactividad): reiniciar sesión DB
+        DBSession.remove()
+        try:
+            return db.get(Usuario, uid)
+        except Exception:
+            return None
 
 def requiere_login(f):
     """Decorador: redirige al login si no hay sesión."""
@@ -461,6 +532,7 @@ def registro():
 
 @app.route("/dashboard")
 @requiere_login
+@proteger_db
 def dashboard():
     u = usuario_logueado()
     if u.rol == "logistica":
@@ -492,6 +564,7 @@ def dashboard():
 
 @app.route("/logistica")
 @requiere_login
+@proteger_db
 def logistica_panel():
     u = usuario_logueado()
     if u.rol != "logistica":
@@ -579,6 +652,7 @@ def editar_perfil():
 @app.route("/admin/usuarios")
 @requiere_login
 @requiere_admin
+@proteger_db
 def admin_usuarios():
     u      = usuario_logueado()
     rol    = request.args.get("rol", "")
@@ -596,6 +670,7 @@ def admin_usuarios():
 @app.route("/admin/logistica")
 @requiere_login
 @requiere_admin
+@proteger_db
 def admin_logistica():
     u = usuario_logueado()
     personal = db.query(Usuario).filter_by(rol="logistica").order_by(Usuario.nombre.asc()).all()
@@ -709,6 +784,7 @@ def admin_logistica_activar(uid):
 @app.route("/admin/usuarios/<int:uid>/editar-rol", methods=["GET", "POST"])
 @requiere_login
 @requiere_admin
+@proteger_db
 def admin_editar_rol(uid):
     u        = usuario_logueado()
     objetivo = db.get(Usuario, uid)
@@ -944,6 +1020,7 @@ def admin_aplicar_restricciones(aid):
 @app.route("/admin/agenda")
 @requiere_login
 @requiere_admin
+@proteger_db
 def admin_agenda():
     u       = usuario_logueado()
     agendas = db.query(AgendaSemestral).order_by(AgendaSemestral.fecha_inicio.desc()).all()
@@ -1024,6 +1101,7 @@ def admin_bloquear_dia(aid):
 @app.route("/admin/agenda/<int:aid>/bloquear/<int:bid>/eliminar", methods=["POST"])
 @requiere_login
 @requiere_admin
+@proteger_db
 def admin_eliminar_bloque(aid, bid):
     bloque = db.get(BloqueHorario, bid)
     if bloque and bloque.agenda_id == aid:
@@ -1038,6 +1116,7 @@ def admin_eliminar_bloque(aid, bid):
 @app.route("/admin/espacios")
 @requiere_login
 @requiere_admin
+@proteger_db
 def admin_espacios():
     u        = usuario_logueado()
     espacios = db.query(Espacio).all()
@@ -1067,6 +1146,7 @@ def admin_espacio_nuevo():
 @app.route("/admin/espacios/<int:eid>/eliminar", methods=["POST"])
 @requiere_login
 @requiere_admin
+@proteger_db
 def admin_espacio_eliminar(eid):
     espacio = db.get(Espacio, eid)
     if espacio:
@@ -1081,6 +1161,7 @@ def admin_espacio_eliminar(eid):
 
 @app.route("/reservas")
 @requiere_login
+@proteger_db
 def mis_reservas():
     u        = usuario_logueado()
     reservas = db.query(Reserva).filter_by(usuario_id=u.id)\
@@ -1210,6 +1291,7 @@ def reserva_nueva():
 # ── Recuperación de contraseña ──────────────────────────────────────────────
 
 @app.route("/recuperar-contrasena", methods=["GET", "POST"])
+@proteger_db
 def recuperar_contrasena():
     if request.method == "POST":
         correo = request.form.get("correo", "").strip()
@@ -1257,6 +1339,7 @@ def recuperar_contrasena_reset(token):
 
 @app.route("/reservas/<int:rid>/ver")
 @requiere_login
+@proteger_db
 def ver_reserva(rid):
     u = usuario_logueado()
     reserva = db.get(Reserva, rid)
@@ -1279,6 +1362,7 @@ def ver_reserva(rid):
 @app.route("/admin/sanciones")
 @requiere_login
 @requiere_admin
+@proteger_db
 def admin_sanciones():
     u = usuario_logueado()
     sanciones = (
@@ -1339,6 +1423,7 @@ def admin_sancion_nueva():
 @app.route("/admin/reservas")
 @requiere_login
 @requiere_admin
+@proteger_db
 def admin_reservas():
     from database import Reserva
     u = usuario_logueado()
@@ -1608,6 +1693,7 @@ COLORES_ESPACIOS = {
 
 @app.route("/calendario")
 @requiere_login
+@proteger_db
 def calendario():
     u = usuario_logueado()
     espacios = db.query(Espacio).all()
@@ -1617,6 +1703,7 @@ def calendario():
 
 @app.route("/api/eventos-calendario")
 @requiere_login
+@proteger_db
 def api_eventos_calendario():
     reservas = db.query(Reserva).filter(
         Reserva.estado.in_(["pendiente", "aprobada"])
@@ -2130,6 +2217,7 @@ def admin_historial():
 @app.route("/admin/calificaciones")
 @requiere_login
 @requiere_admin
+@proteger_db
 def admin_calificaciones():
     """Panel de todas las calificaciones recibidas con estadísticas."""
     u = usuario_logueado()
@@ -2205,6 +2293,7 @@ def admin_responder_calificacion(cid):
 @app.route("/admin/fechas-bloqueadas")
 @requiere_login
 @requiere_admin
+@proteger_db
 def admin_fechas_bloqueadas():
     u = usuario_logueado()
     fechas = db.query(FechaBloqueada).order_by(FechaBloqueada.fecha.asc()).all()
@@ -2237,6 +2326,7 @@ def admin_fecha_bloqueada_nueva():
 @app.route("/admin/fechas-bloqueadas/<int:fid>/eliminar", methods=["POST"])
 @requiere_login
 @requiere_admin
+@proteger_db
 def admin_fecha_bloqueada_eliminar(fid):
     fb = db.get(FechaBloqueada, fid)
     if not fb:
@@ -2251,6 +2341,7 @@ def admin_fecha_bloqueada_eliminar(fid):
 
 @app.route("/api/fechas-bloqueadas")
 @requiere_login
+@proteger_db
 def api_fechas_bloqueadas():
     """Devuelve las fechas bloqueadas en JSON para el frontend."""
     from flask import jsonify
@@ -2275,6 +2366,7 @@ def _mes_label(year, month):
 @app.route("/admin/reportes/reservas")
 @requiere_login
 @requiere_admin
+@proteger_db
 def admin_reportes_reservas():
     """Estadísticas históricas de reservas: por semestre, año, usuario, horario y espacio."""
     u = usuario_logueado()
@@ -2356,6 +2448,7 @@ def admin_reportes_reservas():
 @app.route("/admin/reportes/calificaciones")
 @requiere_login
 @requiere_admin
+@proteger_db
 def admin_reportes_calificaciones():
     """Estadísticas históricas de calificaciones: promedios, tendencias, comparación por período."""
     u = usuario_logueado()
@@ -2444,6 +2537,7 @@ def admin_reportes_calificaciones():
 @app.route("/admin/reportes/reservas/exportar-csv")
 @requiere_login
 @requiere_admin
+@proteger_db
 def admin_exportar_csv_reservas():
     """Exporta todas las reservas históricas en formato CSV."""
     reservas = db.query(Reserva).order_by(Reserva.fecha.desc()).all()
@@ -2484,6 +2578,7 @@ def admin_exportar_csv_reservas():
 @app.route("/admin/reportes/calificaciones/exportar-csv")
 @requiere_login
 @requiere_admin
+@proteger_db
 def admin_exportar_csv_calificaciones():
     """Exporta todas las calificaciones históricas en formato CSV."""
     cals = (
@@ -2526,6 +2621,7 @@ def admin_exportar_csv_calificaciones():
 @app.route("/admin/reportes/ranking/exportar-csv")
 @requiere_login
 @requiere_admin
+@proteger_db
 def admin_exportar_csv_ranking():
     """Exporta el ranking completo de usuarios, espacios y horarios en CSV."""
     todas = db.query(Reserva).all()

@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block title %}Error del servidor{% endblock %}
+{% block content %}
+<div style="text-align:center; padding:4rem 2rem;">
+  <div style="font-size:4rem; margin-bottom:1rem;">⚠️</div>
+  <h1 style="color:var(--navy); margin-bottom:.5rem;">Error interno del servidor</h1>
+  <p style="color:var(--muted); font-size:1rem; margin-bottom:2rem;">
+    Ocurrió un problema inesperado. Por favor recarga la página o intenta de nuevo en unos segundos.
+  </p>
+  <div style="display:flex; gap:1rem; justify-content:center; flex-wrap:wrap;">
+    <a href="{{ url_for('dashboard') }}" class="btn btn-primary">🏠 Ir al inicio</a>
+    <button onclick="location.reload()" class="btn btn-secondary">🔄 Recargar</button>
+  </div>
+</div>
+{% endblock %}
