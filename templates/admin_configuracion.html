@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block title %}Configuración de Restricciones{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>Configuración de Restricciones</h1>
+  <p>Habilita o deshabilita las restricciones globales del sistema de reservas.</p>
+</div>
+
+<div class="card" style="max-width: 600px;">
+  <form method="POST" action="{{ url_for('admin_configuracion') }}">
+    
+    <div style="margin-bottom: 1.5rem;">
+      <label style="display: flex; align-items: center; gap: .75rem; font-weight: bold; cursor: pointer;">
+        <input type="checkbox" name="domingos_bloqueados" style="width: auto; cursor: pointer;" {% if config_data.get('domingos_bloqueados', True) %}checked{% endif %}>
+        Bloquear Domingos
+      </label>
+      <p style="margin-left: 2rem; color: var(--muted); font-size: 0.85rem; margin-top: .2rem;">Si está activado, nadie podrá realizar reservas para los días domingo.</p>
+    </div>
+
+    <div style="margin-bottom: 1.5rem;">
+      <label style="display: flex; align-items: center; gap: .75rem; font-weight: bold; cursor: pointer;">
+        <input type="checkbox" name="lunes_miercoles_sabado_bloqueados" style="width: auto; cursor: pointer;" {% if config_data.get('lunes_miercoles_sabado_bloqueados', True) %}checked{% endif %}>
+        Bloquear Lunes, Miércoles y Sábado
+      </label>
+      <p style="margin-left: 2rem; color: var(--muted); font-size: 0.85rem; margin-top: .2rem;">Si está activado, las reservas en estos días estarán completamente bloqueadas.</p>
+    </div>
+
+    <div style="margin-bottom: 2rem;">
+      <label style="display: flex; align-items: center; gap: .75rem; font-weight: bold; cursor: pointer;">
+        <input type="checkbox" name="martes_jueves_manana_bloqueada" style="width: auto; cursor: pointer;" {% if config_data.get('martes_jueves_manana_bloqueada', True) %}checked{% endif %}>
+        Bloquear Mañanas de Martes y Jueves
+      </label>
+      <p style="margin-left: 2rem; color: var(--muted); font-size: 0.85rem; margin-top: .2rem;">Si está activado, los días martes y jueves solo se podrán reservar a partir de las 12:00 p.m.</p>
+    </div>
+
+    <button type="submit" class="btn btn-primary">💾 Guardar Configuración</button>
+  </form>
+</div>
+{% endblock %}

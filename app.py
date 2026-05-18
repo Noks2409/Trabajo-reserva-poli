@@ -921,24 +921,45 @@ HORA_MANANA_FIN          = dtime(12, 0)
 # Viernes → libre todo el día
 # Domingo → no se puede reservar nunca
 
+import json
+def cargar_configuracion():
+    import os
+    ruta_config = "config.json"
+    if not os.path.exists(ruta_config):
+        return {
+            "domingos_bloqueados": True,
+            "lunes_miercoles_sabado_bloqueados": True,
+            "martes_jueves_manana_bloqueada": True
+        }
+    try:
+        with open(ruta_config, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return {
+            "domingos_bloqueados": True,
+            "lunes_miercoles_sabado_bloqueados": True,
+            "martes_jueves_manana_bloqueada": True
+        }
+
 def horario_valido(fecha, hora_inicio, hora_fin):
     """Verifica que el horario cumpla las restricciones por defecto (RF-08, RF-09)."""
     errores = []
     dia = fecha.weekday()
+    config = cargar_configuracion()
 
-    # Domingo: nunca permitido
-    if dia == 6:
+    # Domingo: nunca permitido (si está configurado así)
+    if dia == 6 and config.get("domingos_bloqueados", True):
         errores.append("No se pueden hacer reservas los domingos.")
         return errores
 
     # Lunes, miércoles y sábado: bloqueados todo el día
     nombres_dias = ["lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo"]
-    if dia in DIAS_BLOQUEADOS_COMPLETO:
+    if dia in DIAS_BLOQUEADOS_COMPLETO and config.get("lunes_miercoles_sabado_bloqueados", True):
         errores.append(f"Los {nombres_dias[dia]} no están disponibles para reservas.")
         return errores
 
     # Martes y jueves: mañana bloqueada (antes de las 12:00)
-    if dia in DIAS_MANANA_BLOQUEADA:
+    if dia in DIAS_MANANA_BLOQUEADA and config.get("martes_jueves_manana_bloqueada", True):
         if hora_inicio < HORA_MANANA_FIN:
             errores.append(f"Los {nombres_dias[dia]} solo están disponibles desde las 12:00 p.m.")
             return errores
@@ -1017,6 +1038,31 @@ def admin_aplicar_restricciones(aid):
 
 # ── AGENDA SEMESTRAL ──────────────────────────────────────────────────────
 
+@app.route("/admin/configuracion", methods=["GET", "POST"])
+@requiere_login
+@requiere_admin
+def admin_configuracion():
+    import json
+    ruta_config = "config.json"
+    u = usuario_logueado()
+    config_data = cargar_configuracion()
+
+    if request.method == "POST":
+        config_data = {
+            "domingos_bloqueados": "domingos_bloqueados" in request.form,
+            "lunes_miercoles_sabado_bloqueados": "lunes_miercoles_sabado_bloqueados" in request.form,
+            "martes_jueves_manana_bloqueada": "martes_jueves_manana_bloqueada" in request.form
+        }
+        try:
+            with open(ruta_config, "w", encoding="utf-8") as f:
+                json.dump(config_data, f, indent=4)
+            flash("Configuración actualizada correctamente.", "success")
+        except Exception as e:
+            flash(f"Error al guardar configuración: {e}", "danger")
+        return redirect(url_for("admin_configuracion"))
+
+    return render_template("admin_configuracion.html", usuario=u, config_data=config_data)
+
 @app.route("/admin/agenda")
 @requiere_login
 @requiere_admin
@@ -1056,6 +1102,26 @@ def admin_agenda_nueva():
             flash("Formato de fecha inválido.", "danger")
     return render_template("admin_agenda_nueva.html", usuario=u)
 
+
+@app.route("/admin/agenda/<int:aid>/eliminar", methods=["POST"])
+@requiere_login
+@requiere_admin
+def admin_agenda_eliminar(aid):
+    from database import BloqueHorario
+    agenda = db.get(AgendaSemestral, aid)
+    if not agenda:
+        flash("Agenda no encontrada.", "danger")
+        return redirect(url_for("admin_agenda"))
+    try:
+        # Eliminar bloques asociados manualmente para evitar conflictos de llave foránea
+        db.query(BloqueHorario).filter_by(agenda_id=agenda.id).delete()
+        db.delete(agenda)
+        db.commit()
+        flash("Agenda y sus bloques asociados eliminados correctamente.", "success")
+    except Exception:
+        db.rollback()
+        flash("Error al eliminar la agenda. Intenta de nuevo.", "danger")
+    return redirect(url_for("admin_agenda"))
 
 @app.route("/admin/agenda/<int:aid>/bloquear", methods=["GET", "POST"])
 @requiere_login
@@ -1910,13 +1976,16 @@ def personas_externas_excel(rid):
             from io import BytesIO
             wb = openpyxl.load_workbook(BytesIO(archivo.read()), data_only=True)
             ws = wb.active
-            headers = [str(ws.cell(1, c).value or "").strip().lower() for c in range(1, 5)]
-            expected = ["nombre", "cedula", "fecha_ingreso", "fecha_salida"]
-            if headers[:4] != expected:
-                flash(f"Estructura incorrecta. La primera fila debe contener: {', '.join(expected)}", "danger")
-                return redirect(url_for("mis_reservas"))
+            # Se elimina la validación estricta de los encabezados para permitir variaciones ("Cédula", "Nombre", etc).
+            # Se asume el formato estándar (col 1: nombre, col 2: cedula, col 3: fecha_ingreso, col 4: fecha_salida).
             for fila_num, row in enumerate(ws.iter_rows(min_row=2, values_only=True), start=2):
-                filas.append((fila_num, row[0], row[1], row[2], row[3]))
+                if not any(row):  # saltar filas totalmente vacías
+                    continue
+                col1 = row[0] if len(row) > 0 else None
+                col2 = row[1] if len(row) > 1 else None
+                col3 = row[2] if len(row) > 2 else None
+                col4 = row[3] if len(row) > 3 else None
+                filas.append((fila_num, col1, col2, col3, col4))
 
         for fila_num, nombre_p, cedula_p, ing_raw, sal_raw in filas:
             nombre_p = str(nombre_p or "").strip()
