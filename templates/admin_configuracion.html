@@ -3,38 +3,136 @@
 
 {% block content %}
 <div class="page-header">
-  <h1>Configuración de Restricciones</h1>
-  <p>Habilita o deshabilita las restricciones globales del sistema de reservas.</p>
+  <h1>⚙️ Restricciones horarias</h1>
+  <p>Define la disponibilidad de cada día de la semana. Los cambios se aplican de inmediato a nuevas reservas.</p>
 </div>
 
-<div class="card" style="max-width: 600px;">
-  <form method="POST" action="{{ url_for('admin_configuracion') }}">
-    
-    <div style="margin-bottom: 1.5rem;">
-      <label style="display: flex; align-items: center; gap: .75rem; font-weight: bold; cursor: pointer;">
-        <input type="checkbox" name="domingos_bloqueados" style="width: auto; cursor: pointer;" {% if config_data.get('domingos_bloqueados', True) %}checked{% endif %}>
-        Bloquear Domingos
-      </label>
-      <p style="margin-left: 2rem; color: var(--muted); font-size: 0.85rem; margin-top: .2rem;">Si está activado, nadie podrá realizar reservas para los días domingo.</p>
+<form method="POST" action="{{ url_for('admin_configuracion') }}" id="formConfig">
+<div style="display:grid; gap:.75rem;">
+
+  {% set capitalizados = ['Lunes','Martes','Miércoles','Jueves','Viernes','Sábado','Domingo'] %}
+
+  {% for dia_num in range(7) %}
+  {% set cfg = configs[dia_num] %}
+  {% set nombre = capitalizados[dia_num] %}
+
+  <div class="card" style="padding:1rem 1.25rem;" id="card-dia-{{ dia_num }}">
+    <div style="display:flex; align-items:center; gap:1.5rem; flex-wrap:wrap;">
+
+      <div style="min-width:90px;">
+        <span style="font-weight:700; font-size:.95rem; color:var(--navy);">{{ nombre }}</span>
+      </div>
+
+      <div style="display:flex; gap:.5rem; flex-wrap:wrap; flex:1;">
+        <label class="opcion-dia {% if cfg.modo == 'disponible' %}activo{% endif %}"
+               onclick="setModo({{ dia_num }}, 'disponible', this)">
+          <input type="radio" name="modo_{{ dia_num }}" value="disponible"
+                 {% if cfg.modo == 'disponible' %}checked{% endif %} style="display:none;">
+          ✅ Disponible
+        </label>
+        <label class="opcion-dia {% if cfg.modo == 'manana_bloqueada' %}activo{% endif %}"
+               onclick="setModo({{ dia_num }}, 'manana_bloqueada', this)">
+          <input type="radio" name="modo_{{ dia_num }}" value="manana_bloqueada"
+                 {% if cfg.modo == 'manana_bloqueada' %}checked{% endif %} style="display:none;">
+          🌅 Solo tarde (12–21)
+        </label>
+        <label class="opcion-dia {% if cfg.modo == 'personalizado' %}activo{% endif %}"
+               onclick="setModo({{ dia_num }}, 'personalizado', this)">
+          <input type="radio" name="modo_{{ dia_num }}" value="personalizado"
+                 {% if cfg.modo == 'personalizado' %}checked{% endif %} style="display:none;">
+          🕐 Personalizado
+        </label>
+        <label class="opcion-dia opcion-bloqueado {% if cfg.modo == 'bloqueado' %}activo-bloqueado{% endif %}"
+               onclick="setModo({{ dia_num }}, 'bloqueado', this)">
+          <input type="radio" name="modo_{{ dia_num }}" value="bloqueado"
+                 {% if cfg.modo == 'bloqueado' %}checked{% endif %} style="display:none;">
+          🚫 Bloqueado
+        </label>
+      </div>
+
+      <div id="estado-{{ dia_num }}" style="min-width:115px; text-align:right; font-size:.8rem; font-weight:600;">
+        {% if cfg.modo == 'disponible' %}
+          <span style="color:#1a6630;">08:00 – 21:00</span>
+        {% elif cfg.modo == 'manana_bloqueada' %}
+          <span style="color:#7a5c00;">12:00 – 21:00</span>
+        {% elif cfg.modo == 'bloqueado' %}
+          <span style="color:#8b1a1a;">No disponible</span>
+        {% else %}
+          <span style="color:var(--navy);">{{ cfg.hora_inicio_custom or '08:00' }} – {{ cfg.hora_fin_custom or '21:00' }}</span>
+        {% endif %}
+      </div>
     </div>
 
-    <div style="margin-bottom: 1.5rem;">
-      <label style="display: flex; align-items: center; gap: .75rem; font-weight: bold; cursor: pointer;">
-        <input type="checkbox" name="lunes_miercoles_sabado_bloqueados" style="width: auto; cursor: pointer;" {% if config_data.get('lunes_miercoles_sabado_bloqueados', True) %}checked{% endif %}>
-        Bloquear Lunes, Miércoles y Sábado
-      </label>
-      <p style="margin-left: 2rem; color: var(--muted); font-size: 0.85rem; margin-top: .2rem;">Si está activado, las reservas en estos días estarán completamente bloqueadas.</p>
+    <div id="custom-{{ dia_num }}"
+         style="margin-top:.75rem; display:{% if cfg.modo == 'personalizado' %}flex{% else %}none{% endif %};
+                align-items:center; gap:1rem; flex-wrap:wrap;
+                background:#f0f8ff; border-radius:8px; padding:.6rem 1rem;">
+      <label style="font-size:.85rem; color:var(--navy); font-weight:600;">Desde</label>
+      <input type="time" name="hora_inicio_{{ dia_num }}"
+             value="{{ cfg.hora_inicio_custom or '08:00' }}"
+             min="06:00" max="22:00"
+             style="padding:.35rem .6rem; border:1px solid #cce4f7; border-radius:6px; font-size:.85rem;"
+             oninput="actualizarEstado({{ dia_num }})">
+      <label style="font-size:.85rem; color:var(--navy); font-weight:600;">Hasta</label>
+      <input type="time" name="hora_fin_{{ dia_num }}"
+             value="{{ cfg.hora_fin_custom or '21:00' }}"
+             min="07:00" max="23:00"
+             style="padding:.35rem .6rem; border:1px solid #cce4f7; border-radius:6px; font-size:.85rem;"
+             oninput="actualizarEstado({{ dia_num }})">
     </div>
+  </div>
+  {% endfor %}
 
-    <div style="margin-bottom: 2rem;">
-      <label style="display: flex; align-items: center; gap: .75rem; font-weight: bold; cursor: pointer;">
-        <input type="checkbox" name="martes_jueves_manana_bloqueada" style="width: auto; cursor: pointer;" {% if config_data.get('martes_jueves_manana_bloqueada', True) %}checked{% endif %}>
-        Bloquear Mañanas de Martes y Jueves
-      </label>
-      <p style="margin-left: 2rem; color: var(--muted); font-size: 0.85rem; margin-top: .2rem;">Si está activado, los días martes y jueves solo se podrán reservar a partir de las 12:00 p.m.</p>
-    </div>
-
-    <button type="submit" class="btn btn-primary">💾 Guardar Configuración</button>
-  </form>
 </div>
+
+<div style="margin-top:1.5rem; display:flex; align-items:center; gap:1rem; flex-wrap:wrap;">
+  <button type="submit" class="btn btn-primary" style="font-size:1rem; padding:.65rem 1.75rem;">
+    💾 Guardar restricciones
+  </button>
+  <span style="font-size:.82rem; color:var(--muted);">Cambios aplicados inmediatamente a nuevas reservas.</span>
+</div>
+</form>
+
+<style>
+.opcion-dia {
+  display:inline-flex; align-items:center; gap:.3rem;
+  padding:.35rem .85rem; border:1.5px solid #cce4f7; border-radius:20px;
+  font-size:.82rem; font-weight:600; color:var(--navy);
+  cursor:pointer; transition:background .15s,border-color .15s,color .15s; user-select:none;
+}
+.opcion-dia:hover { background:#e8f4fd; border-color:var(--cyan-dark); }
+.opcion-dia.activo { background:#e8f4fd; border-color:var(--cyan-dark); color:var(--cyan-dark); }
+.opcion-bloqueado:hover { background:#fdecea; border-color:#c0392b; color:#c0392b; }
+.opcion-bloqueado.activo-bloqueado { background:#fdecea; border-color:#c0392b; color:#c0392b; }
+</style>
+
+<script>
+function setModo(dia, modo, labelEl) {
+  const card = document.getElementById('card-dia-' + dia);
+  card.querySelectorAll('.opcion-dia').forEach(l => l.classList.remove('activo','activo-bloqueado'));
+  labelEl.classList.add(modo === 'bloqueado' ? 'activo-bloqueado' : 'activo');
+  labelEl.querySelector('input[type=radio]').checked = true;
+  document.getElementById('custom-' + dia).style.display = (modo === 'personalizado') ? 'flex' : 'none';
+  actualizarEstado(dia, modo);
+}
+
+function actualizarEstado(dia, modo) {
+  const card = document.getElementById('card-dia-' + dia);
+  const estado = document.getElementById('estado-' + dia);
+  if (!modo) {
+    const sel = card.querySelector('input[type=radio]:checked');
+    modo = sel ? sel.value : 'disponible';
+  }
+  const hi = card.querySelector('input[type=time][name^="hora_inicio"]');
+  const hf = card.querySelector('input[type=time][name^="hora_fin"]');
+  const mapa = {
+    disponible:       ['08:00 – 21:00', '#1a6630'],
+    manana_bloqueada: ['12:00 – 21:00', '#7a5c00'],
+    bloqueado:        ['No disponible',  '#8b1a1a'],
+    personalizado:    [(hi?hi.value:'08:00')+' – '+(hf?hf.value:'21:00'), 'var(--navy)']
+  };
+  const [txt, col] = mapa[modo] || ['—','#999'];
+  estado.innerHTML = `<span style="color:${col};">${txt}</span>`;
+}
+</script>
 {% endblock %}

@@ -557,6 +557,26 @@ class Sancion(Base):
         session.commit()
 
 
+class ConfiguracionDia(Base):
+    """Restricción horaria por día de semana (0=Lunes … 6=Domingo).
+    Una fila por día; persiste en BD (compatible con Vercel/Railway)."""
+    __tablename__ = "configuracion_dia"
+
+    dia   = Column(Integer, primary_key=True)          # 0-6
+    modo  = Column(String, nullable=False, default="disponible")
+    # modos: "disponible" | "bloqueado" | "manana_bloqueada" | "personalizado"
+    hora_inicio_custom = Column(Time, nullable=True)   # solo modo personalizado
+    hora_fin_custom    = Column(Time, nullable=True)   # solo modo personalizado
+
+    def as_dict(self):
+        return {
+            "dia":   self.dia,
+            "modo":  self.modo,
+            "hora_inicio_custom": self.hora_inicio_custom.strftime("%H:%M") if self.hora_inicio_custom else None,
+            "hora_fin_custom":    self.hora_fin_custom.strftime("%H:%M")    if self.hora_fin_custom    else None,
+        }
+
+
 class AgendaSemestral(Base):
     __tablename__ = "agenda_semestral"
 
@@ -672,6 +692,26 @@ def crear_base_de_datos():
     Base.metadata.create_all(engine)
     _migrar_esquema()
     _migrar_esquema_postgres()
+    # Crear configuración por día si no existe
+    # Defaults históricos: Lun/Mié/Sáb/Dom bloqueados; Mar/Jue mañana bloqueada; Vie libre
+    DEFAULTS = {
+        0: "bloqueado",        # Lunes
+        1: "manana_bloqueada", # Martes
+        2: "bloqueado",        # Miércoles
+        3: "manana_bloqueada", # Jueves
+        4: "disponible",       # Viernes
+        5: "bloqueado",        # Sábado
+        6: "bloqueado",        # Domingo
+    }
+    try:
+        session = Session()
+        for dia_num, modo_default in DEFAULTS.items():
+            if not session.get(ConfiguracionDia, dia_num):
+                session.add(ConfiguracionDia(dia=dia_num, modo=modo_default))
+        session.commit()
+        session.close()
+    except Exception as e:
+        print(f"[CONFIG DIA] {e}")
     print("[OK] Base de datos lista.")
 
 
@@ -810,6 +850,33 @@ def _migrar_esquema_postgres():
                 print("[MIGRACIÓN PG] Tabla 'logistica' ya estaba sincronizada.")
     except Exception as e:
         print(f"[MIGRACIÓN PG] Error: {e}")
+
+    # Migrar tabla configuracion_dia (nueva)
+    try:
+        with engine.connect() as conn:
+            conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS configuracion_dia (
+                    dia INTEGER PRIMARY KEY,
+                    modo VARCHAR NOT NULL DEFAULT 'disponible',
+                    hora_inicio_custom TIME,
+                    hora_fin_custom TIME
+                )
+            """))
+            # Insertar defaults si la tabla está vacía
+            count = conn.execute(text("SELECT COUNT(*) FROM configuracion_dia")).scalar()
+            if count == 0:
+                defaults = [
+                    (0, 'bloqueado'), (1, 'manana_bloqueada'), (2, 'bloqueado'),
+                    (3, 'manana_bloqueada'), (4, 'disponible'), (5, 'bloqueado'), (6, 'bloqueado')
+                ]
+                for dia_num, modo in defaults:
+                    conn.execute(text(
+                        "INSERT INTO configuracion_dia(dia, modo) VALUES (:d, :m) ON CONFLICT DO NOTHING"
+                    ), {"d": dia_num, "m": modo})
+            conn.commit()
+            print("[MIGRACIÓN PG] Tabla 'configuracion_dia' lista.")
+    except Exception as e:
+        print(f"[MIGRACIÓN PG] configuracion_dia error: {e}")
 
 
 # ─────────────────────────────────────────────

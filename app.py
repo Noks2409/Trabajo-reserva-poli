@@ -921,54 +921,62 @@ HORA_MANANA_FIN          = dtime(12, 0)
 # Viernes → libre todo el día
 # Domingo → no se puede reservar nunca
 
-import json
-def cargar_configuracion():
-    import os
-    ruta_config = "config.json"
-    if not os.path.exists(ruta_config):
-        return {
-            "domingos_bloqueados": True,
-            "lunes_miercoles_sabado_bloqueados": True,
-            "martes_jueves_manana_bloqueada": True
-        }
+NOMBRES_DIAS = ["lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo"]
+
+# Defaults usados cuando la BD no tiene config para un día
+MODO_DEFAULT = {0:"bloqueado", 1:"manana_bloqueada", 2:"bloqueado",
+                3:"manana_bloqueada", 4:"disponible", 5:"bloqueado", 6:"bloqueado"}
+
+def obtener_config_dia(dia: int):
+    """Retorna la ConfiguracionDia para el día dado (0=Lun…6=Dom).
+    Si no existe en BD devuelve un objeto con el modo default."""
+    from database import ConfiguracionDia
     try:
-        with open(ruta_config, "r", encoding="utf-8") as f:
-            return json.load(f)
+        cfg = db.get(ConfiguracionDia, dia)
+        if cfg:
+            return cfg
     except Exception:
-        return {
-            "domingos_bloqueados": True,
-            "lunes_miercoles_sabado_bloqueados": True,
-            "martes_jueves_manana_bloqueada": True
-        }
+        pass
+    # Fallback con objeto temporal
+    from database import ConfiguracionDia as CD
+    fallback = CD(dia=dia, modo=MODO_DEFAULT.get(dia, "bloqueado"))
+    return fallback
 
 def horario_valido(fecha, hora_inicio, hora_fin):
-    """Verifica que el horario cumpla las restricciones por defecto (RF-08, RF-09)."""
+    """Verifica que el horario cumpla las restricciones configuradas por día (RF-08, RF-09)."""
     errores = []
     dia = fecha.weekday()
-    config = cargar_configuracion()
+    cfg = obtener_config_dia(dia)
+    nombre = NOMBRES_DIAS[dia]
 
-    # Domingo: nunca permitido (si está configurado así)
-    if dia == 6 and config.get("domingos_bloqueados", True):
-        errores.append("No se pueden hacer reservas los domingos.")
+    if cfg.modo == "bloqueado":
+        errores.append(f"Los {nombre} no están disponibles para reservas.")
         return errores
 
-    # Lunes, miércoles y sábado: bloqueados todo el día
-    nombres_dias = ["lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo"]
-    if dia in DIAS_BLOQUEADOS_COMPLETO and config.get("lunes_miercoles_sabado_bloqueados", True):
-        errores.append(f"Los {nombres_dias[dia]} no están disponibles para reservas.")
-        return errores
-
-    # Martes y jueves: mañana bloqueada (antes de las 12:00)
-    if dia in DIAS_MANANA_BLOQUEADA and config.get("martes_jueves_manana_bloqueada", True):
+    if cfg.modo == "manana_bloqueada":
         if hora_inicio < HORA_MANANA_FIN:
-            errores.append(f"Los {nombres_dias[dia]} solo están disponibles desde las 12:00 p.m.")
+            errores.append(f"Los {nombre} solo están disponibles desde las 12:00 p.m.")
             return errores
+        # Verificar horario general en la tarde
+        if hora_inicio < HORA_APERTURA:
+            errores.append("La hora de inicio no puede ser antes de las 8:00 a.m.")
+        if hora_fin > HORA_CIERRE:
+            errores.append("La hora de fin no puede ser después de las 9:00 p.m.")
 
-    # Horario general: 8:00 a.m. - 9:00 p.m.
-    if hora_inicio < HORA_APERTURA:
-        errores.append("La hora de inicio no puede ser antes de las 8:00 a.m.")
-    if hora_fin > HORA_CIERRE:
-        errores.append("La hora de fin no puede ser después de las 9:00 p.m.")
+    elif cfg.modo == "personalizado":
+        apertura = cfg.hora_inicio_custom or HORA_APERTURA
+        cierre   = cfg.hora_fin_custom    or HORA_CIERRE
+        if hora_inicio < apertura:
+            errores.append(f"Los {nombre} están disponibles desde las {apertura.strftime('%H:%M')}.")
+        if hora_fin > cierre:
+            errores.append(f"Los {nombre} están disponibles hasta las {cierre.strftime('%H:%M')}.")
+
+    else:  # disponible — horario general
+        if hora_inicio < HORA_APERTURA:
+            errores.append("La hora de inicio no puede ser antes de las 8:00 a.m.")
+        if hora_fin > HORA_CIERRE:
+            errores.append("La hora de fin no puede ser después de las 9:00 p.m.")
+
     if hora_inicio >= hora_fin:
         errores.append("La hora de inicio debe ser antes que la hora de fin.")
 
@@ -1042,26 +1050,44 @@ def admin_aplicar_restricciones(aid):
 @requiere_login
 @requiere_admin
 def admin_configuracion():
-    import json
-    ruta_config = "config.json"
+    from database import ConfiguracionDia
     u = usuario_logueado()
-    config_data = cargar_configuracion()
+
+    # Asegurar que existan las 7 filas
+    for dia_num, modo_def in MODO_DEFAULT.items():
+        if not db.get(ConfiguracionDia, dia_num):
+            db.add(ConfiguracionDia(dia=dia_num, modo=modo_def))
+    db.commit()
 
     if request.method == "POST":
-        config_data = {
-            "domingos_bloqueados": "domingos_bloqueados" in request.form,
-            "lunes_miercoles_sabado_bloqueados": "lunes_miercoles_sabado_bloqueados" in request.form,
-            "martes_jueves_manana_bloqueada": "martes_jueves_manana_bloqueada" in request.form
-        }
         try:
-            with open(ruta_config, "w", encoding="utf-8") as f:
-                json.dump(config_data, f, indent=4)
-            flash("Configuración actualizada correctamente.", "success")
+            for dia_num in range(7):
+                cfg = db.get(ConfiguracionDia, dia_num)
+                modo = request.form.get(f"modo_{dia_num}", "disponible")
+                cfg.modo = modo
+                if modo == "personalizado":
+                    hi_str = request.form.get(f"hora_inicio_{dia_num}", "08:00")
+                    hf_str = request.form.get(f"hora_fin_{dia_num}",    "21:00")
+                    try:
+                        cfg.hora_inicio_custom = dtime.fromisoformat(hi_str)
+                        cfg.hora_fin_custom    = dtime.fromisoformat(hf_str)
+                    except ValueError:
+                        cfg.hora_inicio_custom = None
+                        cfg.hora_fin_custom    = None
+                else:
+                    cfg.hora_inicio_custom = None
+                    cfg.hora_fin_custom    = None
+            db.commit()
+            flash("Restricciones actualizadas correctamente.", "success")
         except Exception as e:
-            flash(f"Error al guardar configuración: {e}", "danger")
+            db.rollback()
+            flash(f"Error al guardar: {e}", "danger")
         return redirect(url_for("admin_configuracion"))
 
-    return render_template("admin_configuracion.html", usuario=u, config_data=config_data)
+    # GET — cargar config actual
+    configs = {dia_num: db.get(ConfiguracionDia, dia_num).as_dict() for dia_num in range(7)}
+    return render_template("admin_configuracion.html", usuario=u,
+                           configs=configs, nombres_dias=NOMBRES_DIAS)
 
 @app.route("/admin/agenda")
 @requiere_login
@@ -1922,19 +1948,19 @@ def personas_externas_excel(rid):
     u = usuario_logueado()
     reserva = db.get(Reserva, rid)
 
-    if not reserva or reserva.usuario_id != u.id:
+    if not reserva or (reserva.usuario_id != u.id and u.rol != "admin"):
         flash("Reserva no encontrada.", "danger")
-        return redirect(url_for("mis_reservas"))
+        return redirect(url_for("ver_reserva", rid=rid))
 
     archivo = request.files.get("archivo_excel")
     if not archivo or archivo.filename == "":
         flash("No se seleccionó ningún archivo.", "danger")
-        return redirect(url_for("mis_reservas"))
+        return redirect(url_for("ver_reserva", rid=rid))
 
     nombre_archivo = archivo.filename.lower()
     if not (nombre_archivo.endswith(".xlsx") or nombre_archivo.endswith(".xls") or nombre_archivo.endswith(".csv")):
         flash("El archivo debe ser formato Excel (.xlsx o .xls) o CSV (.csv).", "danger")
-        return redirect(url_for("mis_reservas"))
+        return redirect(url_for("ver_reserva", rid=rid))
 
     def parsear_fecha(val):
         if val is None:
@@ -1966,7 +1992,7 @@ def personas_externas_excel(rid):
             headers = [c.strip().lower() for c in rows[0]] if rows else []
             if headers[:4] != expected:
                 flash(f"Estructura incorrecta. La primera fila debe contener: {', '.join(expected)}", "danger")
-                return redirect(url_for("mis_reservas"))
+                return redirect(url_for("ver_reserva", rid=rid))
             for fila_num, row in enumerate(rows[1:], start=2):
                 if len(row) < 2:
                     continue
@@ -2023,7 +2049,7 @@ def personas_externas_excel(rid):
         db.rollback()
         flash(f"Error al procesar el archivo Excel: {e}", "danger")
 
-    return redirect(url_for("mis_reservas"))
+    return redirect(url_for("ver_reserva", rid=rid))
 
 
 # ── Eliminar reserva desde el panel admin ──────────────────────────────────

@@ -92,6 +92,25 @@
 </div>
 {% endif %}
 
+<!-- Subir personas externas con Excel (dueño o admin, reserva activa) -->
+{% if (usuario.id == reserva.usuario_id or usuario.rol == 'admin') and reserva.estado not in ['cancelada', 'rechazada'] %}
+<div class="card" style="margin-top:1.25rem;">
+  <div class="card-title">📊 {% if reserva.personas_externas %}Agregar más personas externas{% else %}Subir personas externas{% endif %}</div>
+  <p style="font-size:.83rem; color:var(--muted); margin-bottom:.75rem;">
+    El archivo debe tener estas columnas en la <strong>primera fila</strong>:
+    <code>nombre</code>, <code>cedula</code>, <code>fecha_ingreso</code>, <code>fecha_salida</code>
+  </p>
+  <form method="POST" action="{{ url_for('personas_externas_excel', rid=reserva.id) }}"
+        enctype="multipart/form-data"
+        style="display:flex; align-items:center; gap:.75rem; flex-wrap:wrap;">
+    <input type="file" name="archivo_excel" accept=".xlsx,.xls,.csv" required
+           style="font-size:.85rem; color:var(--text);"/>
+    <button type="submit" class="btn btn-primary">⬆️ Subir</button>
+  </form>
+</div>
+{% endif %}
+
+
 <!-- Calificación -->
 {% if reserva.calificacion %}
 <div class="card" style="margin-top:1.25rem;">
