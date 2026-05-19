@@ -1376,7 +1376,23 @@ def reserva_nueva():
         except Exception as ex:
             db.rollback()
             raise ex
-    return render_template("reserva_nueva.html", usuario=u, espacios=espacios)
+    # Construir config de días para el template (lee de BD)
+    CAPS = ["Lunes","Martes","Miércoles","Jueves","Viernes","Sábado","Domingo"]
+    dias_config = []
+    for i in range(7):
+        cfg = obtener_config_dia(i)
+        if cfg.modo == "bloqueado":
+            etiqueta, color = "No disponible", "danger"
+        elif cfg.modo == "manana_bloqueada":
+            etiqueta, color = "12:00 – 21:00", "tarde"
+        elif cfg.modo == "personalizado":
+            hi = cfg.hora_inicio_custom.strftime("%H:%M") if cfg.hora_inicio_custom else "08:00"
+            hf = cfg.hora_fin_custom.strftime("%H:%M")    if cfg.hora_fin_custom    else "21:00"
+            etiqueta, color = f"{hi} – {hf}", "tarde"
+        else:  # disponible
+            etiqueta, color = "08:00 – 21:00", "success"
+        dias_config.append((CAPS[i], color, etiqueta))
+    return render_template("reserva_nueva.html", usuario=u, espacios=espacios, dias_config=dias_config)
 
 
 
@@ -1434,7 +1450,18 @@ def recuperar_contrasena_reset(token):
 @proteger_db
 def ver_reserva(rid):
     u = usuario_logueado()
-    reserva = db.get(Reserva, rid)
+    from sqlalchemy.orm import joinedload
+    from database import Reserva as R
+    reserva = (
+        db.query(R)
+        .options(
+            joinedload(R.personas_externas),
+            joinedload(R.espacios),
+            joinedload(R.calificacion),
+        )
+        .filter(R.id == rid)
+        .first()
+    )
 
     if not reserva:
         flash("Reserva no encontrada.", "danger")
@@ -1448,7 +1475,12 @@ def ver_reserva(rid):
         flash("No tienes permiso para ver esta reserva.", "danger")
         return redirect(url_for("mis_reservas"))
 
-    return render_template("ver_reserva.html", usuario=u, reserva=reserva)
+    # Determinar si la reserva está "cerrada" (finalizada + calificada o cancelada/rechazada)
+    ya_cerrada = (
+        reserva.estado in ["cancelada", "rechazada"] or
+        (reserva.calificacion is not None)
+    )
+    return render_template("ver_reserva.html", usuario=u, reserva=reserva, ya_cerrada=ya_cerrada)
 
 
 @app.route("/admin/sanciones")
@@ -1952,6 +1984,15 @@ def personas_externas_excel(rid):
         flash("Reserva no encontrada.", "danger")
         return redirect(url_for("ver_reserva", rid=rid))
 
+    # Bloquear si la reserva está cerrada (calificada, cancelada o rechazada)
+    ya_cerrada = (
+        reserva.estado in ["cancelada", "rechazada"] or
+        reserva.calificacion is not None
+    )
+    if ya_cerrada:
+        flash("No se pueden agregar personas externas a una reserva finalizada o calificada.", "warning")
+        return redirect(url_for("ver_reserva", rid=rid))
+
     archivo = request.files.get("archivo_excel")
     if not archivo or archivo.filename == "":
         flash("No se seleccionó ningún archivo.", "danger")
@@ -2050,6 +2091,63 @@ def personas_externas_excel(rid):
         flash(f"Error al procesar el archivo Excel: {e}", "danger")
 
     return redirect(url_for("ver_reserva", rid=rid))
+
+
+@app.route("/reservas/<int:rid>/personas-externas/descargar")
+@requiere_login
+def descargar_personas_externas(rid):
+    """Descarga la lista de personas externas de una reserva como Excel."""
+    from database import Reserva as R
+    import openpyxl
+    from io import BytesIO
+    from flask import send_file
+
+    u = usuario_logueado()
+    reserva = db.get(R, rid)
+
+    if not reserva or (reserva.usuario_id != u.id and u.rol not in ["admin", "logistica"]):
+        flash("No tienes permiso para descargar esta lista.", "danger")
+        return redirect(url_for("mis_reservas"))
+
+    if not reserva.personas_externas:
+        flash("Esta reserva no tiene personas externas registradas.", "warning")
+        return redirect(url_for("ver_reserva", rid=rid))
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Personas Externas"
+
+    # Encabezados
+    encabezados = ["Nombre", "Cédula", "Fecha Ingreso", "Fecha Salida"]
+    ws.append(encabezados)
+    for cell in ws[1]:
+        cell.font = openpyxl.styles.Font(bold=True)
+
+    # Datos
+    for p in reserva.personas_externas:
+        ws.append([
+            p.nombre,
+            p.cedula,
+            p.fecha_ingreso.strftime("%d/%m/%Y") if p.fecha_ingreso else "",
+            p.fecha_salida.strftime("%d/%m/%Y")  if p.fecha_salida  else "",
+        ])
+
+    # Ajustar anchos de columna
+    for col in ws.columns:
+        max_len = max(len(str(cell.value or "")) for cell in col)
+        ws.column_dimensions[col[0].column_letter].width = max_len + 4
+
+    output = BytesIO()
+    wb.save(output)
+    output.seek(0)
+
+    nombre_archivo = f"personas_externas_reserva_{rid}.xlsx"
+    return send_file(
+        output,
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        as_attachment=True,
+        download_name=nombre_archivo
+    )
 
 
 # ── Eliminar reserva desde el panel admin ──────────────────────────────────

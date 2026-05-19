@@ -75,7 +75,13 @@
 <!-- Personas externas -->
 {% if reserva.personas_externas %}
 <div class="card" style="margin-top:1.25rem;">
-  <div class="card-title">👥 Personas externas ({{ reserva.personas_externas | length }})</div>
+  <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:.5rem; margin-bottom:.75rem;">
+    <div class="card-title" style="margin:0;">👥 Personas externas ({{ reserva.personas_externas | length }})</div>
+    <a href="{{ url_for('descargar_personas_externas', rid=reserva.id) }}"
+       class="btn btn-secondary btn-sm" style="font-size:.8rem; padding:.3rem .85rem;">
+      ⬇️ Descargar Excel
+    </a>
+  </div>
   <table>
     <thead><tr><th>Nombre</th><th>Cédula</th><th>Fecha ingreso</th><th>Fecha salida</th></tr></thead>
     <tbody>
@@ -92,8 +98,8 @@
 </div>
 {% endif %}
 
-<!-- Subir personas externas con Excel (dueño o admin, reserva activa) -->
-{% if (usuario.id == reserva.usuario_id or usuario.rol == 'admin') and reserva.estado not in ['cancelada', 'rechazada'] %}
+<!-- Subir personas externas: solo si la reserva no está cerrada (calificada / cancelada / rechazada) -->
+{% if (usuario.id == reserva.usuario_id or usuario.rol == 'admin') and not ya_cerrada %}
 <div class="card" style="margin-top:1.25rem;">
   <div class="card-title">📊 {% if reserva.personas_externas %}Agregar más personas externas{% else %}Subir personas externas{% endif %}</div>
   <p style="font-size:.83rem; color:var(--muted); margin-bottom:.75rem;">
@@ -108,6 +114,10 @@
     <button type="submit" class="btn btn-primary">⬆️ Subir</button>
   </form>
 </div>
+{% elif ya_cerrada and reserva.personas_externas %}
+<p style="font-size:.8rem; color:var(--muted); margin-top:.5rem; font-style:italic;">
+  ℹ️ Esta reserva está finalizada — no se pueden agregar más personas externas.
+</p>
 {% endif %}
 
 

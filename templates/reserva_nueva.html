@@ -69,21 +69,16 @@
   <p>Completa el formulario para registrar tu solicitud</p>
 </div>
 
-<!-- Días disponibles -->
+<!-- Días disponibles — dinámico desde BD -->
 <div class="card" style="margin-bottom:1.25rem; border-left:4px solid var(--cyan); background:#eaf8fc;">
   <div class="card-title">📅 Días y horarios disponibles</div>
   <div style="display:grid; grid-template-columns:repeat(7,1fr); gap:.4rem; font-size:.82rem; text-align:center;">
-    {% for dia in [
-      ("Lunes",    "danger",  "No disponible",          "—"),
-      ("Martes",   "navy",    "12:00 – 21:00", "✓"),
-      ("Miércoles","danger",  "No disponible",           "—"),
-      ("Jueves",   "navy",    "12:00 – 21:00", "✓"),
-      ("Viernes",  "success", "08:00 – 21:00",  "✓"),
-      ("Sábado",   "danger",  "No disponible",           "—"),
-      ("Domingo",  "danger",  "No disponible",           "—")
-    ] %}
-    <div style="padding:.5rem .4rem; background:white; border-radius:6px; border:1.5px solid {% if dia[1]=='danger' %}#fca5a5{% elif dia[1]=='success' %}#86efac{% else %}var(--cyan){% endif %};">
-      <div style="font-weight:700; color:{% if dia[1]=='danger' %}var(--danger){% elif dia[1]=='success' %}var(--success){% else %}var(--navy){% endif %};">{{ dia[0] }}</div>
+    {% for dia in dias_config %}
+    <div style="padding:.5rem .4rem; background:white; border-radius:6px;
+                border:1.5px solid {% if dia[1]=='danger' %}#fca5a5{% elif dia[1]=='success' %}#86efac{% else %}var(--cyan){% endif %};">
+      <div style="font-weight:700; color:{% if dia[1]=='danger' %}var(--danger){% elif dia[1]=='success' %}#15803d{% else %}var(--navy){% endif %};">
+        {{ dia[0] }}
+      </div>
       <div style="font-size:.72rem; color:var(--muted); margin-top:.2rem; line-height:1.3;">{{ dia[2] }}</div>
     </div>
     {% endfor %}
