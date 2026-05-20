@@ -1364,9 +1364,14 @@ def reserva_nueva():
                             ))
                         db.commit()
 
+                    # Procesar Excel de personas externas si se subió en el formulario
+                    archivo_excel = request.files.get("archivo_excel")
+                    if archivo_excel and archivo_excel.filename:
+                        _procesar_excel_personas(archivo_excel, reserva.id)
+
                     enviar_correo_reserva_creada(u, reserva, espacio)
                     flash("Reserva solicitada correctamente. Queda pendiente de aprobación.", "success")
-                    return redirect(url_for("mis_reservas"))
+                    return redirect(url_for("ver_reserva", rid=reserva.id))
         except (ValueError, TypeError) as ex:
             flash(f"Datos inválidos. Revisa el formulario.", "danger")
         except Exception as ex:
@@ -1379,20 +1384,31 @@ def reserva_nueva():
     # Construir config de días para el template (lee de BD)
     CAPS = ["Lunes","Martes","Miércoles","Jueves","Viernes","Sábado","Domingo"]
     dias_config = []
+    # JS getDay(): 0=Dom,1=Lun,...,6=Sáb → python weekday i → js_day = (i+1)%7
+    restricciones_js = {}
     for i in range(7):
         cfg = obtener_config_dia(i)
+        js_day = (i + 1) % 7
         if cfg.modo == "bloqueado":
             etiqueta, color = "No disponible", "danger"
+            restricciones_js[js_day] = None
         elif cfg.modo == "manana_bloqueada":
             etiqueta, color = "12:00 – 21:00", "tarde"
+            restricciones_js[js_day] = {"min": "12:00", "max": "21:00",
+                                         "label": f"{CAPS[i]}: 12:00 – 21:00"}
         elif cfg.modo == "personalizado":
             hi = cfg.hora_inicio_custom.strftime("%H:%M") if cfg.hora_inicio_custom else "08:00"
             hf = cfg.hora_fin_custom.strftime("%H:%M")    if cfg.hora_fin_custom    else "21:00"
             etiqueta, color = f"{hi} – {hf}", "tarde"
+            restricciones_js[js_day] = {"min": hi, "max": hf,
+                                         "label": f"{CAPS[i]}: {hi} – {hf}"}
         else:  # disponible
             etiqueta, color = "08:00 – 21:00", "success"
+            restricciones_js[js_day] = {"min": "08:00", "max": "21:00",
+                                         "label": f"{CAPS[i]}: 08:00 – 21:00"}
         dias_config.append((CAPS[i], color, etiqueta))
-    return render_template("reserva_nueva.html", usuario=u, espacios=espacios, dias_config=dias_config)
+    return render_template("reserva_nueva.html", usuario=u, espacios=espacios,
+                           dias_config=dias_config, restricciones_js=restricciones_js)
 
 
 
@@ -1974,6 +1990,114 @@ def admin_crear_reserva():
 
 @app.route("/reservas/<int:rid>/personas-externas/excel", methods=["POST"])
 @requiere_login
+def _procesar_excel_personas(archivo, reserva_id):
+    """Procesa un archivo Excel/CSV y agrega PersonaExternaReserva a la reserva dada."""
+    import openpyxl, csv, io
+    nombre_archivo = archivo.filename.lower()
+    agregados = 0
+    try:
+        if nombre_archivo.endswith(".csv"):
+            contenido = archivo.read().decode("utf-8-sig", errors="replace")
+            reader = csv.DictReader(io.StringIO(contenido))
+            filas = list(reader)
+        else:
+            wb = openpyxl.load_workbook(archivo, read_only=True, data_only=True)
+            ws = wb.active
+            encabezados = [str(ws.cell(1, c).value or "").strip().lower()
+                           for c in range(1, ws.max_column + 1)]
+            filas = []
+            for row in ws.iter_rows(min_row=2, values_only=True):
+                filas.append(dict(zip(encabezados, row)))
+
+        for fila in filas:
+            # Normalizar claves (acepta variaciones de nombre)
+            fila_norm = {k.strip().lower().replace(" ","_"): v for k, v in fila.items()}
+            nombre = str(fila_norm.get("nombre") or "").strip()
+            cedula = str(fila_norm.get("cedula") or "").strip()
+            if not nombre or not cedula:
+                continue
+            def parse_fecha(v):
+                if not v:
+                    return None
+                v = str(v).strip()
+                for fmt in ("%Y-%m-%d", "%d/%m/%Y", "%d-%m-%Y"):
+                    try:
+                        from datetime import datetime as _dt
+                        return _dt.strptime(v, fmt).date()
+                    except Exception:
+                        pass
+                return None
+            fi = parse_fecha(fila_norm.get("fecha_ingreso"))
+            fs = parse_fecha(fila_norm.get("fecha_salida"))
+            db.add(PersonaExternaReserva(
+                reserva_id=reserva_id, nombre=nombre,
+                cedula=cedula, fecha_ingreso=fi, fecha_salida=fs,
+            ))
+            agregados += 1
+        if agregados:
+            db.commit()
+            flash(f"{agregados} persona(s) externa(s) agregada(s) correctamente.", "success")
+        else:
+            flash("No se encontraron registros válidos en el archivo.", "warning")
+    except Exception as e:
+        db.rollback()
+        flash(f"Error al procesar el archivo Excel: {e}", "danger")
+
+
+def _procesar_excel_personas(archivo, reserva_id):
+    """Procesa un archivo Excel/CSV y agrega personas externas a la reserva."""
+    import openpyxl, csv, io
+    from database import PersonaExternaReserva
+    nombre_archivo = archivo.filename.lower()
+    agregados = 0
+    try:
+        if nombre_archivo.endswith(".csv"):
+            contenido = archivo.read().decode("utf-8-sig", errors="replace")
+            reader = csv.DictReader(io.StringIO(contenido))
+            filas = list(reader)
+        else:
+            wb = openpyxl.load_workbook(io.BytesIO(archivo.read()), data_only=True)
+            ws = wb.active
+            encabezados = [str(ws.cell(1, c).value or "").strip().lower() for c in range(1, 5)]
+            expected = ["nombre", "cedula", "fecha_ingreso", "fecha_salida"]
+            if encabezados[:4] != expected:
+                return 0
+            filas = []
+            for row in ws.iter_rows(min_row=2, values_only=True):
+                if any(v for v in row[:4]):
+                    filas.append({
+                        "nombre": str(row[0] or "").strip(),
+                        "cedula": str(row[1] or "").strip(),
+                        "fecha_ingreso": str(row[2] or "").strip(),
+                        "fecha_salida":  str(row[3] or "").strip(),
+                    })
+        for fila in filas:
+            nombre = str(fila.get("nombre","") or "").strip()
+            cedula = str(fila.get("cedula","") or "").strip()
+            if not nombre or not cedula:
+                continue
+            def parse_fecha(v):
+                if not v: return None
+                for fmt in ("%Y-%m-%d","%d/%m/%Y","%d-%m-%Y"):
+                    try: return datetime.strptime(v, fmt).date()
+                    except: pass
+                return None
+            db.add(PersonaExternaReserva(
+                reserva_id    = reserva_id,
+                nombre        = nombre,
+                cedula        = cedula,
+                fecha_ingreso = parse_fecha(fila.get("fecha_ingreso","")),
+                fecha_salida  = parse_fecha(fila.get("fecha_salida","")),
+            ))
+            agregados += 1
+        if agregados:
+            db.commit()
+    except Exception as e:
+        db.rollback()
+        print(f"[EXCEL] Error: {e}")
+    return agregados
+
+
 def personas_externas_excel(rid):
     """Carga personas externas desde un archivo Excel (.xlsx / .xls)."""
     from database import Reserva

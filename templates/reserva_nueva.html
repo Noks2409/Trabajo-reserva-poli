@@ -96,7 +96,7 @@
 {% endif %}
 
 <div class="card">
-  <form method="POST" id="formReserva">
+  <form method="POST" id="formReserva" enctype="multipart/form-data">
 
     <!-- Espacio y personas -->
     <div style="display:grid; grid-template-columns:1fr 1fr; gap:.75rem;">
@@ -265,13 +265,12 @@
           </a>
           <div class="form-group" style="margin-top:.75rem;">
             <label>Archivo Excel (.xlsx / .xls)</label>
-            <input type="file" id="archivoExcel" accept=".xlsx,.xls"
+            <input type="file" id="archivoExcel" name="archivo_excel" accept=".xlsx,.xls,.csv"
                    style="background:var(--white); border:1.5px solid var(--border); color:var(--text);
                           padding:.5rem .75rem; border-radius:8px; font-family:inherit; font-size:.87rem;"/>
           </div>
-          <p style="font-size:.77rem; color:#e6a817; margin-top:.3rem;">
-            ⚠️ El archivo Excel se sube <strong>después</strong> de crear la reserva,
-            en la pantalla "Mis Reservas".
+          <p style="font-size:.77rem; color:#1a6630; margin-top:.3rem;">
+            ✅ El archivo se procesará automáticamente al enviar la solicitud.
           </p>
         </div>
       </div>
@@ -355,15 +354,7 @@ function setTab(tab) {
 <script>
 // ── Constantes ────────────────────────────────────────────
 // JS weekday: 0=Dom 1=Lun 2=Mar 3=Mié 4=Jue 5=Vie 6=Sáb
-const RESTRICCIONES = {
-  0: null,
-  1: null,
-  2: { min:"12:00", max:"21:00", label:"Martes: 12:00 – 21:00" },
-  3: null,
-  4: { min:"12:00", max:"21:00", label:"Jueves: 12:00 – 21:00" },
-  5: { min:"08:00", max:"21:00", label:"Viernes: 08:00 – 21:00" },
-  6: null,
-};
+const RESTRICCIONES = {{ restricciones_js | tojson }};
 const NOMBRES_DIAS = ["Domingo","Lunes","Martes","Miércoles","Jueves","Viernes","Sábado"];
 
 // Generar slots de 30 min entre 08:00 y 21:00
