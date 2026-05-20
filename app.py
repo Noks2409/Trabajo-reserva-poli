@@ -3,7 +3,6 @@ Sistema de Reservas de Espacios — Sprint 3
 Módulo de autenticación + gestión de perfil + frontend por rol
 """
 
-from asyncio import coroutines
 from flask import Flask, render_template, request, redirect, url_for, session, flash, make_response, jsonify
 from sqlalchemy.exc import OperationalError as DBOperationalError
 from flask_mail import Mail, Message
@@ -34,12 +33,6 @@ app.config["MAIL_DEFAULT_SENDER"] = ("Sistema de Reservas — Poli", "reservas.p
 mail = Mail(app)
 serializer = URLSafeTimedSerializer(app.secret_key)
 
-@app.after_request
-def add_header(response):
-    response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
-    response.headers["Pragma"] = "no-cache"
-    response.headers["Expires"] = "0"
-    return response
 # ── Funciones de correo ──────────────────────────────────────────────────────
 
 def enviar_correo_reserva_creada(usuario, reserva, espacio):
@@ -335,11 +328,13 @@ def agregar_headers_no_cache(response):
 
 @app.before_request
 def limpiar_sesion_al_iniciar():
-    """Limpia la sesión y carga espacios predefinidos la primera vez que arranca el servidor."""
+    """Carga espacios predefinidos la primera vez que arranca el proceso."""
     if not app.config.get("SESION_LIMPIADA"):
-        session.clear()
         app.config["SESION_LIMPIADA"] = True
-        _cargar_espacios_predefinidos()
+        try:
+            _cargar_espacios_predefinidos()
+        except Exception as e:
+            print(f"[INIT] Error cargando espacios: {e}")
 
 def _cargar_espacios_predefinidos():
     """Crea los espacios del auditorio si no existen aún."""
@@ -680,6 +675,7 @@ def admin_logistica():
 @app.route("/admin/logistica/nuevo", methods=["GET", "POST"])
 @requiere_login
 @requiere_admin
+@proteger_db
 def admin_logistica_nuevo():
     u = usuario_logueado()
     if request.method == "POST":
@@ -710,6 +706,7 @@ def admin_logistica_nuevo():
 @app.route("/admin/logistica/<int:uid>/editar", methods=["GET", "POST"])
 @requiere_login
 @requiere_admin
+@proteger_db
 def admin_logistica_editar(uid):
     u = usuario_logueado()
     personal = db.get(Usuario, uid)
@@ -1049,6 +1046,7 @@ def admin_aplicar_restricciones(aid):
 @app.route("/admin/configuracion", methods=["GET", "POST"])
 @requiere_login
 @requiere_admin
+@proteger_db
 def admin_configuracion():
     from database import ConfiguracionDia
     u = usuario_logueado()
@@ -1102,6 +1100,7 @@ def admin_agenda():
 @app.route("/admin/agenda/nueva", methods=["GET", "POST"])
 @requiere_login
 @requiere_admin
+@proteger_db
 def admin_agenda_nueva():
     u = usuario_logueado()
     if request.method == "POST":
@@ -1132,6 +1131,7 @@ def admin_agenda_nueva():
 @app.route("/admin/agenda/<int:aid>/eliminar", methods=["POST"])
 @requiere_login
 @requiere_admin
+@proteger_db
 def admin_agenda_eliminar(aid):
     from database import BloqueHorario
     agenda = db.get(AgendaSemestral, aid)
@@ -1152,6 +1152,7 @@ def admin_agenda_eliminar(aid):
 @app.route("/admin/agenda/<int:aid>/bloquear", methods=["GET", "POST"])
 @requiere_login
 @requiere_admin
+@proteger_db
 def admin_bloquear_dia(aid):
     u      = usuario_logueado()
     agenda = db.get(AgendaSemestral, aid)
@@ -1267,6 +1268,7 @@ def mis_reservas():
 
 @app.route("/reservas/nueva", methods=["GET", "POST"])
 @requiere_login
+@proteger_db
 def reserva_nueva():
     u        = usuario_logueado()
     espacios = db.query(Espacio).all()
@@ -1372,15 +1374,12 @@ def reserva_nueva():
                     enviar_correo_reserva_creada(u, reserva, espacio)
                     flash("Reserva solicitada correctamente. Queda pendiente de aprobación.", "success")
                     return redirect(url_for("ver_reserva", rid=reserva.id))
-        except (ValueError, TypeError) as ex:
-            flash(f"Datos inválidos. Revisa el formulario.", "danger")
+        except (ValueError, TypeError):
+            flash("Datos inválidos. Revisa el formulario.", "danger")
         except Exception as ex:
             db.rollback()
             traceback.print_exc()
             flash(f"Error al procesar la reserva: {ex}", "danger")
-        except Exception as ex:
-            db.rollback()
-            raise ex
     # Construir config de días para el template (lee de BD)
     CAPS = ["Lunes","Martes","Miércoles","Jueves","Viernes","Sábado","Domingo"]
     dias_config = []
@@ -1516,6 +1515,7 @@ def admin_sanciones():
 @app.route("/admin/sanciones/nueva", methods=["GET", "POST"])
 @requiere_login
 @requiere_admin
+@proteger_db
 def admin_sancion_nueva():
     u = usuario_logueado()
     usuarios = db.query(Usuario).order_by(Usuario.nombre.asc()).all()
@@ -1574,6 +1574,7 @@ def admin_reservas():
 @app.route("/admin/reservas/<int:rid>/aprobar", methods=["GET", "POST"])
 @requiere_login
 @requiere_admin
+@proteger_db
 def admin_aprobar_reserva(rid):
     from database import Reserva
     u       = usuario_logueado()
@@ -1607,6 +1608,7 @@ def admin_aprobar_reserva(rid):
 @app.route("/admin/reservas/<int:rid>/asignar-logistica", methods=["GET", "POST"])
 @requiere_login
 @requiere_admin
+@proteger_db
 def admin_asignar_logistica(rid):
     u = usuario_logueado()
     reserva = db.get(Reserva, rid)
@@ -1650,6 +1652,7 @@ def admin_asignar_logistica(rid):
 @app.route("/admin/reservas/<int:rid>/rechazar", methods=["GET", "POST"])
 @requiere_login
 @requiere_admin
+@proteger_db
 def admin_rechazar_reserva(rid):
     from database import Reserva
     u       = usuario_logueado()
@@ -1693,6 +1696,7 @@ def admin_rechazar_reserva(rid):
 
 @app.route("/reservas/<int:rid>/cancelar", methods=["POST"])
 @requiere_login
+@proteger_db
 def cancelar_reserva(rid):
     from database import Reserva
     from datetime import datetime
@@ -1730,6 +1734,7 @@ def cancelar_reserva(rid):
 
 @app.route("/reservas/<int:rid>/modificar", methods=["GET", "POST"])
 @requiere_login
+@proteger_db
 def modificar_reserva(rid):
     from database import Reserva
     from datetime import datetime, date as ddate, time as dtime2
@@ -1922,6 +1927,7 @@ def api_disponibilidad():
 @app.route("/admin/reservas/nueva", methods=["GET", "POST"])
 @requiere_login
 @requiere_admin
+@proteger_db
 def admin_crear_reserva():
     from database import Reserva, Espacio
     u        = usuario_logueado()
@@ -1988,62 +1994,6 @@ def admin_crear_reserva():
 
 # ── Personas externas — Subida de Excel ────────────────────────────────────
 
-@app.route("/reservas/<int:rid>/personas-externas/excel", methods=["POST"])
-@requiere_login
-def _procesar_excel_personas(archivo, reserva_id):
-    """Procesa un archivo Excel/CSV y agrega PersonaExternaReserva a la reserva dada."""
-    import openpyxl, csv, io
-    nombre_archivo = archivo.filename.lower()
-    agregados = 0
-    try:
-        if nombre_archivo.endswith(".csv"):
-            contenido = archivo.read().decode("utf-8-sig", errors="replace")
-            reader = csv.DictReader(io.StringIO(contenido))
-            filas = list(reader)
-        else:
-            wb = openpyxl.load_workbook(archivo, read_only=True, data_only=True)
-            ws = wb.active
-            encabezados = [str(ws.cell(1, c).value or "").strip().lower()
-                           for c in range(1, ws.max_column + 1)]
-            filas = []
-            for row in ws.iter_rows(min_row=2, values_only=True):
-                filas.append(dict(zip(encabezados, row)))
-
-        for fila in filas:
-            # Normalizar claves (acepta variaciones de nombre)
-            fila_norm = {k.strip().lower().replace(" ","_"): v for k, v in fila.items()}
-            nombre = str(fila_norm.get("nombre") or "").strip()
-            cedula = str(fila_norm.get("cedula") or "").strip()
-            if not nombre or not cedula:
-                continue
-            def parse_fecha(v):
-                if not v:
-                    return None
-                v = str(v).strip()
-                for fmt in ("%Y-%m-%d", "%d/%m/%Y", "%d-%m-%Y"):
-                    try:
-                        from datetime import datetime as _dt
-                        return _dt.strptime(v, fmt).date()
-                    except Exception:
-                        pass
-                return None
-            fi = parse_fecha(fila_norm.get("fecha_ingreso"))
-            fs = parse_fecha(fila_norm.get("fecha_salida"))
-            db.add(PersonaExternaReserva(
-                reserva_id=reserva_id, nombre=nombre,
-                cedula=cedula, fecha_ingreso=fi, fecha_salida=fs,
-            ))
-            agregados += 1
-        if agregados:
-            db.commit()
-            flash(f"{agregados} persona(s) externa(s) agregada(s) correctamente.", "success")
-        else:
-            flash("No se encontraron registros válidos en el archivo.", "warning")
-    except Exception as e:
-        db.rollback()
-        flash(f"Error al procesar el archivo Excel: {e}", "danger")
-
-
 def _procesar_excel_personas(archivo, reserva_id):
     """Procesa un archivo Excel/CSV y agrega personas externas a la reserva."""
     import openpyxl, csv, io
@@ -2098,6 +2048,10 @@ def _procesar_excel_personas(archivo, reserva_id):
     return agregados
 
 
+
+@app.route("/reservas/<int:rid>/personas-externas/excel", methods=["POST"])
+@requiere_login
+@proteger_db
 def personas_externas_excel(rid):
     """Carga personas externas desde un archivo Excel (.xlsx / .xls)."""
     from database import Reserva
@@ -2219,6 +2173,7 @@ def personas_externas_excel(rid):
 
 @app.route("/reservas/<int:rid>/personas-externas/descargar")
 @requiere_login
+@proteger_db
 def descargar_personas_externas(rid):
     """Descarga la lista de personas externas de una reserva como Excel."""
     from database import Reserva as R
@@ -2227,7 +2182,13 @@ def descargar_personas_externas(rid):
     from flask import send_file
 
     u = usuario_logueado()
-    reserva = db.get(R, rid)
+    from sqlalchemy.orm import joinedload
+    reserva = (
+        db.query(R)
+        .options(joinedload(R.personas_externas))
+        .filter(R.id == rid)
+        .first()
+    )
 
     if not reserva or (reserva.usuario_id != u.id and u.rol not in ["admin", "logistica"]):
         flash("No tienes permiso para descargar esta lista.", "danger")
@@ -2306,6 +2267,7 @@ def admin_eliminar_reserva(rid):
 
 @app.route("/reservas/historial")
 @requiere_login
+@proteger_db
 def historial_reservas():
     """Historial completo con filtros por estado, fecha y texto libre."""
     u = usuario_logueado()
@@ -2376,6 +2338,7 @@ def historial_reservas():
 
 @app.route("/reservas/<int:rid>/calificar", methods=["GET", "POST"])
 @requiere_login
+@proteger_db
 def calificar_reserva(rid):
     """El usuario califica una reserva aprobada cuya fecha ya pasó."""
     u = usuario_logueado()
@@ -2446,6 +2409,7 @@ def calificar_reserva(rid):
 @app.route("/admin/historial")
 @requiere_login
 @requiere_admin
+@proteger_db
 def admin_historial():
     """Panel admin: historial completo con filtros y estadísticas."""
     u = usuario_logueado()
@@ -2476,7 +2440,7 @@ def admin_historial():
             pass
 
     if busqueda:
-        query = query.join(Reserva.usuario).filter(
+        query = query.outerjoin(Reserva.usuario).filter(
             Usuario.nombre.ilike(f"%{busqueda}%") |
             Usuario.correo.ilike(f"%{busqueda}%") |
             Reserva.tipo_evento.ilike(f"%{busqueda}%")
@@ -2582,6 +2546,7 @@ def admin_calificaciones():
 @app.route("/admin/calificaciones/<int:cid>/responder", methods=["POST"])
 @requiere_login
 @requiere_admin
+@proteger_db
 def admin_responder_calificacion(cid):
     """El admin responde a la calificación de un usuario."""
     cal = db.get(Calificacion, cid)
@@ -2620,6 +2585,7 @@ def admin_fechas_bloqueadas():
 @app.route("/admin/fechas-bloqueadas/nueva", methods=["POST"])
 @requiere_login
 @requiere_admin
+@proteger_db
 def admin_fecha_bloqueada_nueva():
     u = usuario_logueado()
     fecha_str = request.form.get("fecha", "").strip()
